@@ -1,0 +1,278 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as api from './api'
+import { Filters } from './components/Filters'
+import { Navigator } from './components/Navigator'
+import { QuestionView } from './components/QuestionView'
+import { Desmos } from './components/Desmos'
+import { formatClock, useQuestionTimer } from './lib/useTimer'
+import type {
+  Annotation, Filters as FilterState, GradeResult, Question, SetItem, Stats, TaxonomyRow,
+} from './types'
+
+const SECTION_LABEL = { RW: 'Reading and Writing', MATH: 'Math' } as const
+
+const DIRECTIONS = {
+  RW: [
+    'The questions in this section address a number of important reading and writing skills. Each question includes one or more passages, which may include a table or graph. Read each passage and question carefully, and then choose the best answer to the question based on the passage(s).',
+    'All questions in this section are multiple-choice with four answer choices. Each question has a single best answer.',
+  ],
+  MATH: [
+    'The questions in this section address a number of important math skills. Use of a calculator is permitted for all questions.',
+    'For multiple-choice questions, solve each problem and choose the correct answer from the choices provided. For student-produced response questions, solve each problem and enter your answer.',
+  ],
+} as const
+
+export default function App() {
+  const [taxonomy, setTaxonomy] = useState<TaxonomyRow[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [filters, setFilters] = useState<FilterState>({})
+  const [items, setItems] = useState<SetItem[]>([])
+  const [index, setIndex] = useState(0)
+
+  const [question, setQuestion] = useState<Question | null>(null)
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [flagged, setFlagged] = useState(false)
+  const [response, setResponse] = useState<string | null>(null)
+  const [result, setResult] = useState<GradeResult | null>(null)
+  const [crossOut, setCrossOut] = useState<Set<string>>(new Set())
+  const [crossOutMode, setCrossOutMode] = useState(false)
+
+  const [showNavigator, setShowNavigator] = useState(false)
+  const [showDirections, setShowDirections] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
+  const [showTimer, setShowTimer] = useState(true)
+  const [showDesmos, setShowDesmos] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const current = items[index] ?? null
+  const seconds = useQuestionTimer(current?.id ?? null, question !== null && result === null)
+
+  useEffect(() => {
+    api.taxonomy()
+      .then((d) => { setTaxonomy(d.taxonomy); setStats(d.stats) })
+      .catch((e: Error) => setError(e.message))
+  }, [])
+
+  useEffect(() => {
+    let stale = false
+    api.questionSet(filters)
+      .then((d) => { if (!stale) { setItems(d.questions); setIndex(0) } })
+      .catch((e: Error) => !stale && setError(e.message))
+    return () => { stale = true }
+  }, [filters])
+
+  useEffect(() => {
+    if (!current) { setQuestion(null); return }
+    let stale = false
+    setLoading(true)
+    setQuestion(null); setResult(null); setResponse(null)
+    setCrossOut(new Set()); setAnnotations([]); setCrossOutMode(false)
+    api.question(current.id)
+      .then((d) => {
+        if (stale) return
+        setQuestion(d.question); setAnnotations(d.annotations); setFlagged(d.flagged)
+      })
+      .catch((e: Error) => !stale && setError(e.message))
+      .finally(() => { if (!stale) setLoading(false) })
+    return () => { stale = true }
+  }, [current?.id])
+
+  const go = useCallback((next: number) => {
+    setIndex(Math.min(items.length - 1, Math.max(0, next)))
+  }, [items.length])
+
+  async function submit() {
+    if (!current || !response || result) return
+    try {
+      const graded = await api.answer(current.id, response, seconds)
+      setResult(graded)
+      setItems((prev) => prev.map((item) => (
+        item.id === current.id
+          ? {
+              ...item,
+              last_correct: graded.correct ? 1 : 0,
+              last_seconds: seconds,
+              last_response: response,
+              answered_at: Math.floor(Date.now() / 1000),
+              attempt_count: (item.attempt_count ?? 0) + 1,
+            }
+          : item
+      )))
+      api.stats().then(setStats).catch(() => {})
+    } catch (e) { setError((e as Error).message) }
+  }
+
+  async function toggleFlag() {
+    if (!current) return
+    const next = !flagged
+    setFlagged(next)
+    setItems((prev) => prev.map((i) => (i.id === current.id ? { ...i, flagged: next ? 1 : 0 } : i)))
+    try { await api.flag(current.id, next) } catch (e) { setError((e as Error).message) }
+  }
+
+  async function persistAnnotations(next: Annotation[]) {
+    if (!current) return
+    setAnnotations(next)
+    try {
+      const saved = await api.saveAnnotations(current.id, next)
+      setAnnotations(saved.annotations)
+    } catch (e) { setError((e as Error).message) }
+  }
+
+  function toggleCrossOut(label: string) {
+    setCrossOut((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else { next.add(label); if (response === label) setResponse(null) }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const tag = (event.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (event.key === 'ArrowRight') go(index + 1)
+      if (event.key === 'ArrowLeft') go(index - 1)
+      if (event.key === 'Escape') {
+        setShowNavigator(false); setShowDesmos(false); setShowDirections(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [index, go])
+
+  const section = question?.section ?? filters.section ?? 'RW'
+  const moduleTitle = useMemo(() => {
+    const bits: string[] = [SECTION_LABEL[section]]
+    if (question?.domain_name) bits.push(question.domain_name)
+    return bits.join(': ')
+  }, [section, question?.domain_name])
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="topbar-left">
+          <div className="module-title">{moduleTitle}</div>
+          <button className="directions" onClick={() => setShowDirections((v) => !v)}>
+            Directions <span className="chev">{showDirections ? '▲' : '▼'}</span>
+          </button>
+        </div>
+
+        <div className="topbar-center">
+          <div className={showTimer ? 'clock' : 'clock is-hidden'}>
+            {showTimer ? formatClock(seconds) : '- - -'}
+          </div>
+          <button className="hide-btn" onClick={() => setShowTimer((v) => !v)}>
+            {showTimer ? 'Hide' : 'Show'}
+          </button>
+        </div>
+
+        <div className="topbar-right">
+          {section === 'MATH' ? (
+            <button className="tool" onClick={() => setShowDesmos((v) => !v)}>
+              <span className="glyph">🖩</span>
+              Calculator
+            </button>
+          ) : null}
+          <button className="tool" onClick={() => setShowFilters((v) => !v)}>
+            <span className="glyph">☰</span>
+            {showFilters ? 'Hide Filters' : 'Filters'}
+          </button>
+          {stats ? (
+            <div className="tool" style={{ cursor: 'default' }}>
+              <span className="glyph">
+                {stats.accuracy !== null ? `${Math.round(stats.accuracy * 100)}%` : '—'}
+              </span>
+              {stats.correct}/{stats.attempts}
+            </div>
+          ) : null}
+        </div>
+      </header>
+      <div className="dashrule" />
+
+      <div className="banner">THIS IS A PRACTICE SET</div>
+
+      {showFilters ? (
+        <Filters taxonomy={taxonomy} value={filters} count={items.length}
+                 onChange={setFilters} />
+      ) : null}
+
+      {error ? (
+        <div className="error" onClick={() => setError(null)}>{error} (click to dismiss)</div>
+      ) : null}
+
+      <main className="main">
+        {loading ? <div className="placeholder">Loading question…</div> : null}
+        {!loading && !current ? (
+          <div className="placeholder">No questions match these filters.</div>
+        ) : null}
+        {!loading && question && current ? (
+          <QuestionView
+            question={question}
+            number={index + 1}
+            annotations={annotations}
+            result={result}
+            seconds={seconds}
+            response={response}
+            flagged={flagged}
+            crossOutMode={crossOutMode}
+            crossOut={crossOut}
+            onRespond={setResponse}
+            onSubmit={submit}
+            onToggleFlag={toggleFlag}
+            onToggleCrossOutMode={() => setCrossOutMode((v) => !v)}
+            onToggleCrossOut={toggleCrossOut}
+            onAddAnnotation={(a) => persistAnnotations([...annotations, a as Annotation])}
+            onRemoveAnnotation={(id) =>
+              persistAnnotations(annotations.filter((a) => a.id !== id))}
+          />
+        ) : null}
+        {showDesmos ? <Desmos onClose={() => setShowDesmos(false)} /> : null}
+      </main>
+
+      <div className="dashrule" />
+      <footer className="bottombar">
+        <div className="who">SAT Bluebank</div>
+        <div>
+          <button className="navbtn" onClick={() => setShowNavigator(true)}
+                  disabled={!items.length}>
+            Question {items.length ? index + 1 : 0} of {items.length}
+            <span className="chev">▲</span>
+          </button>
+        </div>
+        <div className="bottom-right">
+          <button className="btn ghost" onClick={() => go(index - 1)} disabled={index <= 0}>
+            Back
+          </button>
+          <button className="btn primary" onClick={() => go(index + 1)}
+                  disabled={index >= items.length - 1}>
+            Next
+          </button>
+        </div>
+      </footer>
+
+      {showNavigator ? (
+        <Navigator items={items} current={index} title={`${moduleTitle} Questions`}
+                   onGo={go} onClose={() => setShowNavigator(false)} />
+      ) : null}
+
+      {showDirections ? (
+        <>
+          <div className="dir-scrim" onClick={() => setShowDirections(false)} />
+          <div className="dir-sheet" role="dialog" aria-label="Directions">
+            <div className="dir-body">
+              {DIRECTIONS[section].map((line) => <p key={line}>{line}</p>)}
+            </div>
+            <div className="dir-foot">
+              <button className="btn yellow" onClick={() => setShowDirections(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
+}

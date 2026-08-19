@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SAT Bluebank</title>
+    <script>
+      // MathML in, SVG out: no font files to fetch, so it works offline.
+      window.MathJax = {
+        loader: { load: ['input/mml', 'output/svg'] },
+        options: {
+          enableMenu: false,
+          // The bank ships alttext on every <math>; keep it for screen readers.
+          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+        },
+        startup: { typeset: false },
+      };
+    </script>
+    <script defer src="/mathjax/mml-svg.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

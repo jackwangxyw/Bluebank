@@ -1,0 +1,16 @@
+# Never commit College Board content. The exporter regenerates it in ~5 min.
+data/
+raw/
+*.db
+*.sqlite
+*.sqlite3
+
+node_modules/
+__pycache__/
+.venv/
+venv/
+.env
+.DS_Store
+
+# Bluebook reference screenshots: local only, never committed.
+reference/

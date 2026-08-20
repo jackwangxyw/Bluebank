@@ -12,33 +12,128 @@ unverified items without re-checking.
 
 ## 1. Where things stand
 
-**Working end to end.** Backend is complete and verified; the frontend has all
-the functionality and has had four UI passes (§8), the last of which was
-checked in a rendered browser (§9 says how).
+**Working end to end, deployed, and renamed.** Live at
+<https://jackwangxyw.github.io/Bluebank/>. Localhost still works too and the two
+are independent (section 7c).
 
 ```
 python -m bluebank serve      # http://localhost:8000
 ```
 
-If the bank isn't built yet: `python -m bluebank build` (~5 min), then
+If the bank is not built: `python -m bluebank build` (about 5 min), then
 `cd web && npm install && npm run build`.
 
-Frontend dev with hot reload: `python -m bluebank serve` in one terminal,
+Frontend with hot reload: `python -m bluebank serve` in one terminal,
 `cd web && npm run dev` in another (Vite on :5173 proxies /api to :8000).
 
 | | Count |
 |---|---|
 | Questions in the local DB | 3,767 live, 0 retired |
-| Answer keys recovered from rationale text | 81 |
-| Questions with no answer key | **0** |
 | MCQs with per-choice explanations | 3,301 of 3,303 |
-| Questions flagged by the normalizer | **3** (all genuine source defects, §6) |
+| Questions with no answer key | **0** |
+| Questions flagged by the normalizer | **3** (all genuine source defects, section 6) |
 | Backend tests | 32 passing |
 | Frontend tests | 57 passing |
 | Local data on disk | 43 MB `raw/`, 47 MB `data/` (both gitignored) |
-| Code | ~1,780 lines Python, ~1,690 lines TypeScript |
 
-Attempts, annotations, and marks tables are empty. Test data was cleared.
+### Renamed to Bluebank (2026-08-19)
+
+"SAT" is a College Board trademark and "Bluebank" one letter from "Bluebook" was
+the most attackable detail in the project, so the whole thing was renamed.
+
+| Was | Now |
+|---|---|
+| `satbluebank/` | `bluebank/` |
+| repo `SAT-Bluebank` | repo `Bluebank` |
+| `https://jackwangxyw.github.io/SAT-Bluebank/` | `.../Bluebank/` |
+| IndexedDB `satbluebank` | IndexedDB `bluebank` |
+| UI wordmark "SAT Bluebank" | "Bluebank" |
+
+Two consequences. The **old Pages URL 404s**, it does not redirect. And the
+IndexedDB rename means the static build starts from an empty database and
+re-fetches the index; anything answered there before the rename is stranded in
+the old `satbluebank` database until it is cleared.
+
+**The local folder is still `SAT Bluebank`.** It could not be renamed from
+inside the session because the agent's own shell sits in it and Windows will not
+rename a directory a process is using. Nothing depends on the folder name.
+
+---
+
+## 1b. Legality, and the decision that is still open
+
+Read the actual terms before advising on this again. They are at
+<https://www.collegeboard.org/site-terms> and they are not ambiguous.
+
+Verbatim, the three clauses that bear on this project:
+
+> "You may not attempt to decompile, reverse engineer, **scrape or data-mine**
+> College Board Services or Content."
+
+> "Our Content may not be distributed, **downloaded**, uploaded, reproduced,
+> reposted, retransmitted, disseminated, sold, published, broadcast, or
+> circulated, or otherwise used, **in part or in whole, in any way whatsoever**
+> without our express written permission."
+
+> "You may not use **any College Board trademark** ... without our express
+> written consent."
+
+One clause helps: **"You may use our services for non-commercial use only."**
+The project is compliant there and should stay that way. No ads, no donations,
+no Patreon.
+
+So the honest position is that the exporter sits squarely inside the
+scrape/data-mine clause, and "we only ship the fetcher" is a distribution
+argument rather than a copyright one. Personal, non-commercial study is the
+strongest available posture, but it is a mitigation and not permission. Nobody
+here is a lawyer and none of this is legal advice.
+
+**The layout was never the risk.** Functional UI arrangement is broadly
+unprotectable, which is why every test-prep tool looks alike. The trademark was
+the sharp part and the rename dealt with it.
+
+### Done already
+
+- Renamed off "SAT" and away from "Bluebook" (section 1).
+- Non-commercial, and no content is committed to the repo. Verified: the
+  deployed bundle contains no question text, and the one README screenshot uses
+  an invented passage, stem and choices rather than a real question.
+- The static build fetches the index plus one body per question you open, which
+  looks like a person using the site. The 3,770-request bulk build is the part
+  that looks like scraping, and it only runs on localhost.
+
+### The open decision: bring-your-own-data
+
+**Status: proposed, not built. The user is leaning NO as of 2026-08-19,**
+because it kills the one-click site, which is most of why the thing is nice.
+Do not build it without asking again.
+
+The idea: the hosted site stops fetching College Board entirely and becomes a
+viewer for a file the user produced themselves.
+
+```
+bluebank build           # user runs this, on their machine, their IP
+bluebank export          # writes bluebank-export.json  (does not exist yet)
+```
+
+Then the site offers a file drop instead of auto-fetching, loads it into
+IndexedDB, and everything works as it does now.
+
+| | now | with bring-your-own-data |
+|---|---|---|
+| Who performs automated access | the site, in every visitor's browser | the user, on their own machine |
+| What is distributed | a scraper and a UI | a UI, and separately a tool |
+| Content flowing through the site | none stored, but it passes through | none at all |
+
+Why it is the strongest available answer: if the hosted site never issues a
+request to `collegeboard.org`, it is not doing what the scrape clause
+prohibits. The exporter still is, but it is run by the person doing it, for
+their own study, which is the `youtube-dl` position.
+
+What it costs, and why the user is hesitant: a visitor who just wants to look at
+the app has to install Python and run a build first. The export is also about
+47 MB of JSON. If it does get built, keep the fetch path behind
+`?backend=fetch` so local use does not regress.
 
 ---
 
@@ -199,27 +294,94 @@ should call `navigator.storage.persist()` so 43 MB in IndexedDB isn't evicted.
 can't be withheld until you answer the way the server version does. It stays
 hidden in the UI, just not cryptographically. Irrelevant for personal use.
 
-### Cross-device sync, designed but not built
+### Moving your progress to another machine (designed, NOT built)
 
-Decided approach for when progress needs to move between machines:
+Asked for on 2026-08-19. Do not build it without asking; it is written down so
+the next session does not have to re-derive it.
 
-**One file per device, all in one cloud-synced folder.** Each device only ever
-writes its own `device-<id>.jsonl` and reads all of them, so there is no write
-conflict and no "conflicted copy" from OneDrive or Dropbox. Merge is a replay:
+The problem: progress lives in two places that never talk to each other, and
+neither can currently be moved. On localhost it is three SQLite tables, on the
+static build it is IndexedDB. Someone practising on a laptop and a desktop, or
+switching browsers, loses everything.
 
-- **Attempts** are append-only and union trivially.
-- **Flags and annotations** are last-write-wins per question by timestamp.
+Your progress is small. Only three things are yours, everything else
+re-downloads:
 
-Written from the browser via the File System Access API (`showDirectoryPicker`,
-handle stashed in IndexedDB). Chrome and Edge only; Firefox and Safari fall
-back to manual export/import. Needs a secure context, so https or localhost
-but not plain http on a LAN IP.
+| Table / store | What it is |
+|---|---|
+| `attempts` | every answer, with `answered_at` and `seconds` |
+| `annotations` | highlights and notes, as (field, start, end, colour, note) |
+| `marks` | marked for review |
 
-**Do this before accumulating history:** `attempts.id` is an autoincrementing
-integer, which is per-database, so two machines both create id 5 and merging
-would silently drop attempts. It needs a UUID per attempt. It is a one-line
-schema change and **the attempts table is currently empty**, so it costs
-nothing right now and becomes a migration later.
+At nine attempts that is about 2 KB. Even a year of heavy use is well under a
+megabyte, so the file can just be JSON and nobody needs to care about size.
+
+#### The one thing that has to be fixed first
+
+**`attempts.id` in SQLite is still `INTEGER PRIMARY KEY`**, which is
+per-database. Two machines both mint id 5, and a merge silently drops one of
+them. The IndexedDB side already uses `crypto.randomUUID()` (see
+`web/src/lib/store.ts`), so the two sides disagree today.
+
+Change the SQLite column to a TEXT uuid **before** any real history builds up.
+It is a one-line schema change and the table currently has 9 rows, so it costs
+nothing now and becomes a migration later. This has been on the list for three
+sessions and is still not done.
+
+#### Shape of the format
+
+One file, both backends read and write it, no device-specific anything:
+
+```json
+{
+  "version": 1,
+  "exported_at": 1787200000,
+  "attempts":    [{"id": "uuid", "question_id": "...", "answered_at": 0, "response": "B", "correct": 1, "seconds": 12}],
+  "annotations": [{"question_id": "...", "field": "stimulus", "start_offset": 0, "end_offset": 20, "color": "yellow", "note": null}],
+  "marks":       [{"question_id": "...", "flagged": 1}]
+}
+```
+
+Question ids are stable College Board ids, so a file exported anywhere imports
+anywhere. Highlight offsets are stable too, because they are measured over text
+nodes and the question HTML does not change between machines.
+
+#### Merge rules
+
+Import should merge rather than replace, or moving between two active machines
+loses whichever you imported into second.
+
+- **Attempts are append-only.** Union by `id`. This is the whole reason the
+  uuid matters.
+- **Marks are last-write-wins** per question. They have no timestamp today, so
+  either add one or accept that the importing side wins.
+- **Annotations are last-write-wins** per question, replacing the whole list for
+  that question rather than merging item by item. Merging individual highlights
+  by offset would need identity they do not have.
+
+#### Where it plugs in
+
+`import` already exists in the CLI but it loads *questions*, not progress, so
+the new commands need different names. Something like:
+
+```
+bluebank export-progress  progress.json
+bluebank import-progress  progress.json
+```
+
+On the static build the same two operations are a download button and a file
+drop, hitting the same three IndexedDB stores. `web/src/lib/store.ts` already
+has `getAll` and `putMany` over every store, so the browser half is small.
+
+The working backup snippet in the README does the export half for SQLite
+already, and its round trip was tested (exported 9/1/4 rows, wiped, restored,
+got 9/1/4 back). Start from that rather than writing it again.
+
+#### What this is not
+
+This is progress only. It does not move the question bank, which is 47 MB and
+re-downloadable, and it is a separate thing from the bring-your-own-data
+proposal in section 1b even though both involve a JSON file.
 
 ---
 
@@ -479,17 +641,6 @@ The home header is now literally `Bluebank` over
 invented marketing line, no decorative eyebrow label. The user's words were
 "looks SUPER ai i HATE THAT". Do not add one back.
 
-### Home page (rebuilt in pass 4)
-
-The native `<select>` dropdowns are **gone**. There are only 8 domains and at
-most 7 skills in any one of them, so a dropdown was the wrong control for the
-data: they are chip rows now, with the count on each chip. Difficulty and
-history are segmented pills.
-
-`.segmented` is `flex-wrap: nowrap` and `.field-row .field` is `flex: 0 0 auto`
-on purpose. With wrapping allowed, the 5-option history control broke out of
-its pill shape into a rounded blob. Each control sizes to its own content.
-
 ### Gotcha that cost 33px per choice box
 
 `RichText` renders College Board's `<p>` tags. `.passage p, .stem p` had their
@@ -546,6 +697,108 @@ The note flow was driven end to end over CDP: select text, popup appears,
 survives clicking into the input, note saves, the mark gets `hl-note` and a
 title, and the panel shows the quote and the note.
 
+### Passes 6 and 7 (2026-08-19): two pages, and the home page finally landing
+
+The home page took four attempts because the wrong problem was being solved
+each time. Worth reading before touching it again.
+
+1. Pass 4 built a generic modern page. Feedback: "looks like AI".
+2. Pass 5 added a teal/blue two-hue system, a gradient ground and soft shadows.
+   Worse, and for a specific reason: **the home page had invented its own visual
+   language while the practice view was Bluebook-accurate**, so the app looked
+   like two products.
+3. Pass 6 measured College Board's actual sites instead of designing. All three
+   of satsuite, satsuitequestionbank and bluebook.collegeboard.org agree on four
+   values and nothing else: `#324DC7`, `#1E1E1E`, `#F0F0F0`, white, controls at
+   999px, no second hue. The teal, gradient and shadows were all invented and
+   went.
+4. Pass 7 was told to look at well-made product pages generally rather than any
+   test-prep site. linear.app and stripe.com share one lesson that mattered:
+   **structure comes from hairline rules and whitespace, not boxed panels with
+   shadows**, with extreme scale contrast (one big confident number, everything
+   else small and quiet) and tight negative tracking at display size.
+
+The final shape: sans only, hairline rows, one accent, and **progressive
+disclosure**. The page opens with nothing selected and only the three section
+cards; each following row appears as the choice above it is made; clicking the
+chosen card again clears the filters and collapses back. That needed local state
+in `Home.tsx`, because `section: undefined` cannot distinguish "every question"
+from "nothing chosen yet" and those are now different states.
+
+Serif is gone from the chrome. It stays on question content, which is the bank's
+own typography rather than UI.
+
+### Stats page
+
+Second tab. Built on the taxonomy endpoint, which already carries n / seen /
+correct per section, domain, skill and difficulty, so it needed no backend work.
+**`seen` and `correct` come from the LAST attempt per question**, so accuracy
+there means current mastery rather than a lifetime average.
+
+- "Where to focus" ranks weakest skills first but only counts skills with at
+  least 5 attempts. One unlucky question should not become "your weakest
+  skill". Below the threshold it says so and falls back to the biggest
+  untouched areas instead of inventing a recommendation.
+- Every skill row and focus row starts a filtered practice set, so the page
+  leads somewhere.
+- A bank-composition heatmap was built and then removed on request: it
+  described the bank rather than your progress.
+
+**Two colour bugs that only a contrast pass would have caught**, both worth
+remembering because neither is visible in review:
+
+1. `--yellow` (`#eab308`) measures **1.92:1 on white**. Every "mid accuracy"
+   number was effectively invisible. Text uses `--amber-text` (`#8a5a00`,
+   5.93:1) now. `--yellow` keeps its job as a navigator cell fill, where it is a
+   background under dark text.
+2. In the heatmap ramp, step `#5872da` cleared 4.5:1 with **neither** dark text
+   (3.84) nor white (4.34), so no label on those cells could have been legible
+   either way. The ramp is gone with the heatmap, but the lesson stands: compute
+   the text-invert point from measured contrast, never from a guessed ratio.
+
+### The calculator matches the real one now
+
+Driven by a screenshot of Bluebook's calculator. The chrome was easy; the thing
+that actually mattered was not.
+
+- **The panel defaults to portrait (420x580) on purpose.** Desmos lays itself
+  out responsively, so a narrow container stacks the graph above the expression
+  list the way Bluebook shows it, and a landscape one puts expressions down the
+  left. No amount of styling fixes that. Measured off the real app at about
+  412x579.
+- Title bar is `#1c1c1c` at 41px, white bold "Calculator" left, a 3x3 dot grid
+  centred as the drag handle, diagonal-arrow expand and a close X right.
+- Runs in Desmos's **restricted testing mode** (`restrictedFunctions`), with
+  folders, notes, images, links and the paste importers off. You can tell it
+  took effect because the keypad key reads "funcs" rather than "functions", and
+  the real Bluebook keypad also reads "funcs", so College Board runs the same
+  mode. This is the public Desmos API build with test options set, not College
+  Board's bundle.
+- The Desmos API key is the user's own now, so the trial-key warning is gone.
+  A non-commercial notice remains, which is what a free personal key does.
+
+### Marking and highlights
+
+- Marked for Review turns the **ribbon red and leaves the label black**. An
+  earlier pass made the whole thing blue unprompted, which was wrong: blue is
+  the selected/primary colour everywhere else, so a mark read as just another
+  active control. The band does not tint.
+- The navigator marks a question with a folded corner ribbon. It is two stacked
+  triangles so it carries a white edge along the fold, without which it vanishes
+  on a cell that is itself red because the last attempt was wrong.
+- The highlight menu dismisses on pointer-down anywhere outside it, and on
+  Escape. Clicks inside are exempt so focusing the note input cannot close it.
+  It used to persist until you committed or cancelled, stranding it over the
+  passage.
+- `class="sr-only"` is clipped, not `display: none`. The bank ships long-form
+  chart descriptions for screen readers in **1,375 of 3,767 questions** and with
+  no rule for the class they rendered as a wall of data points under every
+  graph. It has to stay in the accessibility tree, and it has to stay in the
+  text-node stream or every saved highlight offset after it shifts.
+- `.hl-note` used to be two different things, the popup input and a `<mark>`
+  carrying a note, so noted highlights picked up the input's pill border. The
+  input is `.hl-note-input`. Do not merge them again.
+
 ### Still not matched, deliberately
 
 - **The "THIS IS A PRACTICE TEST" banner** is in the reference but stays out;
@@ -563,6 +816,23 @@ title, and the panel shows the quote and the note.
    render. The explanation view has - the user confirmed it looks right.
 
 ## 9. Gotchas
+
+### Where the data lives, how to clear it, how to back it up
+
+Localhost is `data/bluebank.db`, 47 MB, of which **about 2 KB is yours**:
+`attempts`, `annotations`, `marks`. Everything else re-downloads. `raw/` is
+another 43 MB of cached API payloads. Back up the three tables, not the file;
+the README has a snippet whose round trip was tested.
+
+To clear progress and keep the questions, delete from those three tables. To
+clear everything, `rm -rf data raw` and run `build`.
+
+The static build is IndexedDB `bluebank` on the Pages origin, measured live at
+1.24 MB with `persisted: true`, so Chrome will not evict it.
+`indexedDB.deleteDatabase('bluebank')` clears it. Only question bodies you have
+actually opened are cached, which is why it is 1 MB and not 47.
+
+There is **no built-in clear or export command**. See section 7 for the design.
 
 ### How to actually look at the UI (do this before any UI work)
 
@@ -664,7 +934,8 @@ web/src/
   App.tsx        shell, home/practice routing, keyboard
   api.ts         ~50-line API client; the whole data layer sits behind this
   types.ts
-  components/    Home, QuestionView, Navigator, Explanation, RichText, Icon, Desmos
+  components/    Home, Stats, QuestionView, Navigator, Notes, Explanation,
+                 RichText, Icon, Desmos
   api.ts         backend picker (build-time, VITE_BACKEND)
   apiHttp.ts     localhost backend: the Python server
   apiLocal.ts    static backend: College Board direct + IndexedDB
@@ -685,12 +956,18 @@ reference/       Bluebook + OnePrep screenshots, gitignored
 
 ## 11. Suggested next actions
 
-1. **Force-push the rewritten history**, then decide whether to delete and
-   recreate the GitHub repo for a guaranteed purge, before making it public.
-2. Render the navigator popup and check it against the new palette. It has not
-   been looked at since pass 2.
-3. Confirm the first-try-correct color.
-4. Add a UUID to the SQLite `attempts` table too. The IndexedDB side already
-   uses one; the Python side is still an autoincrementing integer.
-5. Consider a "download the whole bank" button on the static build for offline
-   use, now that on-demand is the default.
+1. **Add the uuid to `attempts` in SQLite.** One line, the table has 9 rows, and
+   it blocks any cross-machine progress move (section 7). It has been deferred
+   three sessions running.
+2. Decide the bring-your-own-data question in section 1b. The user was leaning
+   no as of 2026-08-19. Do not build it without asking.
+3. Build progress export/import if the answer to "how do I move machines" comes
+   up again. Design is written, nothing is coded.
+4. The practice-test builder, which was explicitly deferred. `score_band_range_cd`
+   (1 to 7, finer than E/M/H) is already in the DB and unused, and is the right
+   input for a module-2 difficulty step.
+5. Activity over time on the stats page. No endpoint exposes `attempts.answered_at`
+   as a series yet, and it needs adding to both backends. Pointless until there
+   is real history.
+6. Confirm the green-for-first-try-correct navigator colour, which was assumed
+   and never confirmed.

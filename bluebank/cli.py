@@ -1,4 +1,4 @@
-"""Command line entry point: python -m satbluebank <command>"""
+"""Command line entry point: python -m bluebank <command>"""
 import argparse
 import html as _html
 import json
@@ -146,7 +146,7 @@ def cmd_audit(args):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="satbluebank")
+    p = argparse.ArgumentParser(prog="bluebank")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     for name, fn in (("index", cmd_index), ("fetch", cmd_fetch),
@@ -179,7 +179,7 @@ def main(argv=None):
     sp.add_argument("--port", type=int, default=8000)
     sp.add_argument("-v", "--verbose", action="store_true")
     sp.set_defaults(fn=lambda a: __import__(
-        "satbluebank.server", fromlist=["serve"]).serve(
+        "bluebank.server", fromlist=["serve"]).serve(
             host=a.host, port=a.port, verbose=a.verbose))
 
     sp = sub.add_parser("import")

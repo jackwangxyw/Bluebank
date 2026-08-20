@@ -1,5 +1,5 @@
 /**
- * The practice-set ordering. Twin of `shuffle_key` in satbluebank/db.py, and it
+ * The practice-set ordering. Twin of `shuffle_key` in bluebank/db.py, and it
  * must return the identical value: the pinned test cases are shared.
  *
  * Why this exists: the natural order is section, domain, skill, difficulty, and

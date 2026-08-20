@@ -119,7 +119,7 @@ def _review(conn, query, body):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "satbluebank"
+    server_version = "bluebank"
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):

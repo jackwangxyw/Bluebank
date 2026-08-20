@@ -175,7 +175,7 @@ export default function App() {
         ) : null}
         <nav className="tabs">
           <div className="tabs-inner">
-            <span className="wordmark">SAT Bluebank</span>
+            <span className="wordmark">Bluebank</span>
             <button className={view === 'home' ? 'tab on' : 'tab'}
                     onClick={() => setView('home')}>Practice</button>
             <button className={view === 'stats' ? 'tab on' : 'tab'}
@@ -297,7 +297,7 @@ export default function App() {
       </main>
 
       <footer className="bottombar">
-        <div className="bottom-left">SAT Bluebank</div>
+        <div className="bottom-left">Bluebank</div>
         <div className="bottom-mid">
           <button className="navbtn" onClick={() => setShowNavigator(true)}
                   disabled={!items.length}>

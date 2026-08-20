@@ -13,7 +13,7 @@
 import type { Annotation, StoredQuestion } from '../types'
 import type { Stub } from './normalize'
 
-const DB_NAME = 'satbluebank'
+const DB_NAME = 'bluebank'
 const DB_VERSION = 1
 
 export const STORE_INDEX = 'index'        // Stub, keyed by _id

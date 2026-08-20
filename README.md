@@ -1,29 +1,23 @@
-# SAT Bluebank
+# Bluebank
 
 A practice app for the official College Board SAT question bank, laid out like Bluebook. It grades your answer against the real key and then shows College Board's own explanation, including the one for the choice you actually picked. There are 3,767 questions and 3,301 of the multiple choice ones have a per choice explanation.
 
 The repo is code only. No question content is committed, and none of it is in the built site either. The app fetches the bank from College Board at runtime and keeps it locally, so the first thing you do after cloning is download it.
 
-![Practice picker](Images/practice-picker.png)
-![Stats](Images/stats.png)
-
-## Read this first
-The College Board site terms say you may not "decompile, reverse engineer, scrape or data-mine College Board Services or Content", and that their content may not be "distributed, downloaded, uploaded, reproduced" without written permission. This project does the thing that clause describes. It's non-commercial and it's personal study, which is the best position you can be in here, but that's a mitigation and not permission. Run it locally for yourself and you're in the same place as anyone saving a practice question. Host it publicly and you're the one distributing, which is a different thing.
-
-I'm not a lawyer and this isn't legal advice.
+![Practice view](Images/practice.png)
 
 ## Quick start
 You need Python 3.9 or newer and Node. The build takes about five minutes, almost all of it downloading 3,767 question bodies at 12.8 requests a second.
 
 ```
-python -m satbluebank build     # index, fetch, normalize
+python -m bluebank build     # index, fetch, normalize
 cd web && npm install && npm run build
-cd .. && python -m satbluebank serve
+cd .. && python -m bluebank serve
 ```
 
 Then open http://localhost:8000. If you only want to poke at the data, `build` on its own is enough and you can skip the web part entirely.
 
-For frontend work, run `python -m satbluebank serve` in one terminal and `npm run dev` in another. Vite sits on 5173 and proxies `/api` to 8000, so you get hot reload against the real data.
+For frontend work, run `python -m bluebank serve` in one terminal and `npm run dev` in another. Vite sits on 5173 and proxies `/api` to 8000, so you get hot reload against the real data.
 
 ## Two backends
 The frontend talks to one module, [web/src/api.ts](web/src/api.ts), and nothing else in the app touches the network or storage. That module picks between two implementations at build time.
@@ -76,7 +70,7 @@ io.open('progress-backup.json','w',encoding='utf-8').write(json.dumps(out, inden
 
 To wipe your progress and keep the questions, delete from those same three tables. To wipe everything, `rm -rf data raw` and run `build` again.
 
-On the static build it's IndexedDB under database `satbluebank`, and `indexedDB.deleteDatabase('satbluebank')` in the console clears it. The app calls `navigator.storage.persist()` on startup so the browser won't evict the cache under storage pressure.
+On the static build it's IndexedDB under database `bluebank`, and `indexedDB.deleteDatabase('bluebank')` in the console clears it. The app calls `navigator.storage.persist()` on startup so the browser won't evict the cache under storage pressure.
 
 ## The API
 Three endpoints, no authentication of any kind. Confirmed with bare curl sending only `Content-Type`, and confirmed again from a real browser on a foreign origin.
@@ -93,7 +87,7 @@ Math domains are `H,P,Q,S`. Difficulty is E/M/H, but there's also `score_band_ra
 The whole index is those first two calls and takes 1.7 seconds. The 3,767 individual bodies are what take five minutes.
 
 ## Explanations
-Each rationale arrives as one HTML blob covering all four choices, and [satbluebank/rationale.py](satbluebank/rationale.py) splits it into a piece per choice. It cuts the HTML rather than flattened text, so MathML and inline SVG survive, and each piece gets rebalanced because the cuts land in the middle of a paragraph.
+Each rationale arrives as one HTML blob covering all four choices, and [bluebank/rationale.py](bluebank/rationale.py) splits it into a piece per choice. It cuts the HTML rather than flattened text, so MathML and inline SVG survive, and each piece gets rebalanced because the cuts land in the middle of a paragraph.
 
 The wording varies more than you'd expect. `&nbsp;` shows up inside "Choice A&nbsp;is", the letter is sometimes wrapped in a tag, rejections come grouped as "Choices A, B, and C are incorrect", the verb goes missing in "Choice B incorrect.", and the `ibn` items use "<p>Incorrect Answer Rationale<br>" headers with no terminating period.
 
@@ -111,7 +105,7 @@ Two bugs in here silently produced wrong answer keys before they were caught, wh
 
 `normalize` also cross checks the split against the key. Exactly one per choice explanation has to read as "correct" and it has to be the keyed choice. That agrees on 3,301 of 3,303 multiple choice questions. The two that don't are real defects in College Board's own text where the options were reordered and the prose wasn't updated, so their per choice mapping gets dropped and you see the whole rationale instead. Left alone they'd tell a student who picked D that they were right.
 
-`python -m satbluebank audit` should report exactly 3 flagged questions. If it reports more, something in the parser broke.
+`python -m bluebank audit` should report exactly 3 flagged questions. If it reports more, something in the parser broke.
 
 ## Grading
 `correct_answer` is a list, and it mixes two different things: alternate spellings of one value like `["0.25", "1/4"]`, and genuinely different valid answers like `["7", "8", "13"]` for "one possible value of a". Grading is a membership test either way, so the review screen shows every accepted form rather than the first one.
@@ -119,7 +113,7 @@ Two bugs in here silently produced wrong answer keys before they were caught, wh
 A response is also accepted if it's numerically equal to a listed answer, so typing 1.5 for a listed 3/2 is right. That comparison uses exact rational arithmetic, `Fraction` in Python and a BigInt fraction in TypeScript. Floats get 3/17 wrong.
 
 ## Ordering
-Sets are ordered by `shuffle_key`, which is FNV-1a over the question id with a splitmix64 finalizer, in [satbluebank/db.py](satbluebank/db.py) and mirrored in [web/src/lib/shuffle.ts](web/src/lib/shuffle.ts). The two return identical values and the tests pin them.
+Sets are ordered by `shuffle_key`, which is FNV-1a over the question id with a splitmix64 finalizer, in [bluebank/db.py](bluebank/db.py) and mirrored in [web/src/lib/shuffle.ts](web/src/lib/shuffle.ts). The two return identical values and the tests pin them.
 
 Without it, section sorts before domain and you get all 1,922 Math questions before the first Reading one. With it, question 40 is the same question tomorrow, after a rebuild, and on the other backend, because the key comes from the id rather than from stored state.
 
@@ -141,6 +135,3 @@ The calculator runs in Desmos's restricted testing mode, which is their `restric
 Highlight offsets are measured over text nodes only, skipping math, SVG and images. That's what lets MathJax replace every `<math>` with generated SVG without moving a highlight. Don't simplify the skip.
 
 MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Desmos loads from their CDN the first time you open the calculator, and nothing else in the app needs the network once it's built.
-
-## Screenshots and content
-The screenshots in this README are the picker and the stats page, both of which show counts and no question text. A screenshot of the practice view would put a College Board passage, its answer choices and its rationale into a public repo, which is the one thing this project otherwise doesn't do.

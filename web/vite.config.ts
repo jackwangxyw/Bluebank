@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
   const pages = mode === 'pages'
   return {
     plugins: [react()],
-    base: pages ? (process.env.BASE ?? '/SAT-Bluebank/') : '/',
+    base: pages ? (process.env.BASE ?? '/Bluebank/') : '/',
     server: {
       port: 5173,
       proxy: { '/api': 'http://127.0.0.1:8000' },

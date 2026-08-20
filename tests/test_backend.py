@@ -3,7 +3,7 @@ made-up example; the comment names the question it came from.
 """
 import unittest
 
-from satbluebank import db, grading, rationale
+from bluebank import db, grading, rationale
 
 
 class TestCanonical(unittest.TestCase):

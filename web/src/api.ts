@@ -46,6 +46,6 @@ export const stats = impl.stats
 
 /**
  * Re-read the index from College Board. Static backend only: on localhost the
- * refresh is `python -m satbluebank build`.
+ * refresh is `python -m bluebank build`.
  */
 export const refreshIndex = backend === 'local' ? local.refreshIndex : null

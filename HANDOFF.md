@@ -1,4 +1,4 @@
-# SAT Bluebank — handoff
+# Bluebank — handoff
 
 Written 2026-08-19. A local Bluebook-style SAT practice app over the official
 College Board question bank, with auto-grading and College Board's own
@@ -17,13 +17,13 @@ the functionality and has had four UI passes (§8), the last of which was
 checked in a rendered browser (§9 says how).
 
 ```
-python -m satbluebank serve      # http://localhost:8000
+python -m bluebank serve      # http://localhost:8000
 ```
 
-If the bank isn't built yet: `python -m satbluebank build` (~5 min), then
+If the bank isn't built yet: `python -m bluebank build` (~5 min), then
 `cd web && npm install && npm run build`.
 
-Frontend dev with hot reload: `python -m satbluebank serve` in one terminal,
+Frontend dev with hot reload: `python -m bluebank serve` in one terminal,
 `cd web && npm run dev` in another (Vite on :5173 proxies /api to :8000).
 
 | | Count |
@@ -155,7 +155,7 @@ truncated at the reference.
 
 ## 6. The 3 flagged questions
 
-Run `python -m satbluebank audit`. A healthy corpus reports exactly 3, all
+Run `python -m bluebank audit`. A healthy corpus reports exactly 3, all
 defects in College Board's own text:
 
 | Question | Flag | What's wrong |
@@ -192,7 +192,7 @@ What the port involves, roughly 600–700 lines:
 | `server.py` | Deleted entirely |
 
 Pages specifics: repo must be public (fine, code only), Vite needs
-`base: '/SAT-Bluebank/'` unless a custom domain is pointed at it, and the app
+`base: '/Bluebank/'` unless a custom domain is pointed at it, and the app
 should call `navigator.storage.persist()` so 43 MB in IndexedDB isn't evicted.
 
 **What is lost on Pages:** the answer key has to live in the browser, so it
@@ -319,7 +319,7 @@ driven over the DevTools Protocol:
 ### The ordering hash changed: blake2b -> FNV-1a + splitmix64
 
 `shuffle_key` is now FNV-1a with a **splitmix64 finalizer**, in both
-`satbluebank/db.py` and `web/src/lib/shuffle.ts`, with pinned values shared
+`bluebank/db.py` and `web/src/lib/shuffle.ts`, with pinned values shared
 between `tests/test_backend.py` and `web/src/lib/shuffle.test.ts`.
 
 blake2b was dropped because it has no browser equivalent and WebCrypto's
@@ -461,20 +461,20 @@ current split (padding on `.prompt` and a direct-child `.passage`, not on
   a pale blue ring. The cross-out toggle outside the box is a lettered circle
   with a rule struck across it; **crossing out turns the circle blue** and
   keeps the letter. It used to swap in an "Undo" label, which was bad.
-- **Footer**: mirrors the header. Left is the fixed wordmark **SAT Bluebank**.
+- **Footer**: mirrors the header. Left is the fixed wordmark **Bluebank**.
   Black `Question N of M` pill centered, two blue pills right.
 - **Fonts**: Noto Sans for chrome, Noto Serif for question content, with
   italics because passages use them.
 - **Mark for Review** is a bookmark, not a flag, and blue not red.
 
-### The app is called SAT Bluebank. Never write "Bluebook" in the UI.
+### The app is called Bluebank. Never write "Bluebook" in the UI.
 
 Pass 4 briefly put "SAT Bluebook" in the footer and then, worse, invented a
 "SAT BLUEBOOK" wordmark on the home page that nobody asked for. Both are gone.
 **Bluebook** is College Board's own app and the word belongs only in code
 comments describing what is being copied, never in anything the user sees.
 
-The home header is now literally `SAT Bluebank` over
+The home header is now literally `Bluebank` over
 `{total} official College Board questions with explanations` - no tagline, no
 invented marketing line, no decorative eyebrow label. The user's words were
 "looks SUPER ai i HATE THAT". Do not add one back.
@@ -587,7 +587,7 @@ page looks like it hung. Symptom: the app renders but shows 0 questions and
 
 ```bash
 chrome.exe --headless=new --remote-debugging-port=9222 --user-data-dir=... about:blank &
-node cdp.mjs "http://localhost:8124/SAT-Bluebank/" 20000 shot.png
+node cdp.mjs "http://localhost:8124/Bluebank/" 20000 shot.png
 ```
 
 Node 24 has a global `WebSocket`, so a CDP driver is about 40 lines and needs
@@ -626,7 +626,7 @@ eye; that is how the 85px choice box and the too-short dashes were caught.
   and push fresh; with two commits that costs nothing.
 
 - **The user runs all git operations.** Do not commit, push, or set remotes.
-  Remote is `https://github.com/jackwangxyw/SAT-Bluebank.git`.
+  Remote is `https://github.com/jackwangxyw/Bluebank.git`.
 - **Windows:** set `PYTHONIOENCODING=utf-8` before any command that prints
   question text, or cp1252 will throw on the unicode minus sign.
 - **Backgrounding in Git Bash:** `cd x && python … &` backgrounds the whole
@@ -648,7 +648,7 @@ eye; that is how the 85px choice box and the too-short dashes were caught.
 ## 10. File map
 
 ```
-satbluebank/
+bluebank/
   api.py         3 endpoints, retry, no auth
   db.py          SQLite schema + shuffle_key(), the stable set ordering
   pipeline.py    pass 1 index, pass 2 fetch (resumable), pass 3 normalize

@@ -97,7 +97,7 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
 
   const dirty = Boolean(
     value.section || value.domain || value.skill || value.difficulty || value.status)
-  const sectionOf = (key: Section | 'ALL') => (key === 'ALL' ? 'all' : key.toLowerCase())
+  const SECTION_NAME: Record<Section, string> = { RW: 'Reading and Writing', MATH: 'Math' }
 
   function set(patch: Partial<Filters>) { onChange({ ...value, ...patch }) }
 
@@ -105,7 +105,7 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
 
   return (
     <div className="home">
-      <div className="home-inner">
+      <div className="home-top">
         <header className="hero">
           <div className="hero-id">
             <h1 className="hero-title">SAT Bluebank</h1>
@@ -142,7 +142,9 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             </div>
           ) : null}
         </header>
+      </div>
 
+      <div className="home-inner">
         <section className="picker">
           <div className="picker-head">
             <h2>Choose a section</h2>
@@ -154,7 +156,7 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             ) : null}
           </div>
           <div className="cards">
-            <button className={`card tone-all${!value.section ? ' on' : ''}`}
+            <button className={`card${!value.section ? ' on' : ''}`}
                     onClick={() => set({ section: undefined, domain: undefined, skill: undefined })}>
               <span className="card-n">{totals.all.toLocaleString()}</span>
               <span className="card-t">Everything</span>
@@ -162,7 +164,7 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             </button>
             {SECTIONS.map((s) => (
               <button key={s.key}
-                      className={`card tone-${sectionOf(s.key)}${value.section === s.key ? ' on' : ''}`}
+                      className={`card${value.section === s.key ? ' on' : ''}`}
                       onClick={() => set({ section: s.key, domain: undefined, skill: undefined })}>
                 <span className="card-n">{totals[s.key].toLocaleString()}</span>
                 <span className="card-t">{s.label}</span>
@@ -178,7 +180,7 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
           <div className="refine-row">
             <span className="refine-label">Domain</span>
             <div className="chips">
-              <button className={`chip tone-all${!value.domain ? ' on' : ''}`}
+              <button className={`chip${!value.domain ? ' on' : ''}`}
                       onClick={() => set({ domain: undefined, skill: undefined })}>
                 All
               </button>
@@ -186,11 +188,15 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
                 <Fragment key={d.code}>
                   {/* Force a line break where the section changes, so the two
                       colour groups do not interleave mid-row when they wrap. */}
-                  {i > 0 && domains[i - 1].section !== d.section
-                    ? <span className="chips-break" />
-                    : null}
+                  {!value.section && (i === 0 || domains[i - 1].section !== d.section) ? (
+                    <>
+                      {i > 0 ? <span className="chips-break" /> : null}
+                      <span className="chips-caption">{SECTION_NAME[d.section]}</span>
+                      <span className="chips-break" />
+                    </>
+                  ) : null}
                   <button
-                    className={`chip tone-${sectionOf(d.section)}${value.domain === d.code ? ' on' : ''}`}
+                    className={`chip${value.domain === d.code ? ' on' : ''}`}
                     onClick={() => set({ domain: d.code, skill: undefined })}>
                     <span className="chip-label">{d.name}</span>
                     <span className="chip-n">{d.n}</span>
@@ -206,13 +212,13 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             <span className="refine-label">Skill</span>
             {value.domain ? (
               <div className="chips">
-                <button className={`chip tone-all${!value.skill ? ' on' : ''}`}
+                <button className={`chip${!value.skill ? ' on' : ''}`}
                         onClick={() => set({ skill: undefined })}>
                   All
                 </button>
                 {skills.map((s) => (
                   <button key={s.code}
-                          className={`chip tone-${sectionOf(value.section ?? 'ALL')}${value.skill === s.code ? ' on' : ''}`}
+                          className={`chip${value.skill === s.code ? ' on' : ''}`}
                           onClick={() => set({ skill: s.code })}>
                     <span className="chip-label">{s.name}</span>
                     <span className="chip-n">{s.n}</span>
@@ -229,13 +235,12 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
           <div className="refine-row">
             <span className="refine-label">Difficulty</span>
             <div className="chips">
-              <button className={`chip tone-all${!value.difficulty ? ' on' : ''}`}
+              <button className={`chip${!value.difficulty ? ' on' : ''}`}
                       onClick={() => set({ difficulty: undefined })}>Any</button>
               {DIFFICULTIES.map((d) => (
                 <button key={d.key}
-                        className={`chip diff-${d.key}${value.difficulty === d.key ? ' on' : ''}`}
+                        className={`chip${value.difficulty === d.key ? ' on' : ''}`}
                         onClick={() => set({ difficulty: d.key })}>
-                  <span className="diff-dot" />
                   {d.label}
                 </button>
               ))}
@@ -245,11 +250,11 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
           <div className="refine-row">
             <span className="refine-label">History</span>
             <div className="chips">
-              <button className={`chip tone-all${!value.status ? ' on' : ''}`}
+              <button className={`chip${!value.status ? ' on' : ''}`}
                       onClick={() => set({ status: undefined })}>Any</button>
               {STATUSES.map((s) => (
                 <button key={s.key}
-                        className={`chip tone-all${value.status === s.key ? ' on' : ''}`}
+                        className={`chip${value.status === s.key ? ' on' : ''}`}
                         onClick={() => set({ status: s.key })}>{s.label}</button>
               ))}
             </div>

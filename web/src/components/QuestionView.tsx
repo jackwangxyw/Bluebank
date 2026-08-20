@@ -51,6 +51,36 @@ export function QuestionView(props: Props) {
 
   useEffect(() => { setPending(null); setNoteDraft('') }, [question.id])
 
+  /**
+   * Dismiss the highlight menu as soon as you interact anywhere else.
+   *
+   * It used to persist until you committed or hit the explicit cancel, so
+   * clicking away left it stranded over the passage. Pointer-down is the right
+   * signal: it fires when you click off AND when you start dragging a new
+   * selection, and it precedes the mouseup that would open the next menu.
+   *
+   * Clicks inside the menu are exempt, otherwise focusing the note input would
+   * close the very menu it belongs to.
+   */
+  useEffect(() => {
+    if (!pending) return
+    function dismiss() { setPending(null); setNoteDraft('') }
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null
+      if (target?.closest?.('.hl-menu')) return
+      dismiss()
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') dismiss()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [pending])
+
   useEffect(() => {
     function move(event: MouseEvent) {
       if (!dragging.current) return
@@ -105,7 +135,7 @@ export function QuestionView(props: Props) {
     <div className="prompt">
       {hasStimulus && !isSplit ? <div className="figure">{stimulus}</div> : null}
 
-      <div className="q-head">
+      <div className={flagged ? 'q-head is-marked' : 'q-head'}>
         <span className="q-num">{number}</span>
         <button className={flagged ? 'markbtn on' : 'markbtn'} onClick={onToggleFlag}>
           {flagged ? <BookmarkFilled size={17} /> : <Icon name="bookmark" size={17} />}

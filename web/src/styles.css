@@ -66,236 +66,200 @@ button { font-family: inherit; }
 
 /* ============================ home ============================ */
 /*
- * Two things were making this read as generated: it was sans-only, and it was a
- * flat stack of four identical pill rows with no structure.
+ * The home page was reading as generated because it had its own invented visual
+ * language: a teal/blue two-hue system, a gradient ground, soft shadows and
+ * squared chips. None of that is College Board.
  *
- *  - Type: the display sizes use Noto Serif, the same face the question content
- *    uses. Sans-only is the default look of every landing page; the serif is
- *    what the product actually looks like, and hierarchy comes from weight and
- *    face together, not size alone (SKILL 15).
- *  - Structure: the section choice is the primary decision and gets its own
- *    weight; every refinement lives in ONE panel with labels down the left, so
- *    the page reads as a tool rather than a list (SKILL 12 material weight
- *    encodes hierarchy, SKILL 16 simplicity is not minimalism).
- *  - Colour still carries information: each section owns a hue and its domain
- *    and skill chips inherit it.
+ * Measured from satsuite.collegeboard.org, satsuitequestionbank.collegeboard.org
+ * and bluebook.collegeboard.org, all three agree on the same four values:
+ *
+ *      #324DC7   rgb(50, 77, 199)    the blue, on every primary control
+ *      #1E1E1E   rgb(30, 30, 30)     text
+ *      #F0F0F0   rgb(240, 240, 240)  the one grey surface
+ *      #FFFFFF                       everything else
+ *
+ * Buttons are that blue, white text, 999px. Radii are 999px or nothing. There
+ * is no second hue anywhere.
+ *
+ * So this page is now built from the practice view's own parts rather than a
+ * parallel design: the pale header band with its dashed rule, the grey question
+ * band, choice-box borders, and a footer band with a blue pill. The two screens
+ * are the same product.
  */
 .home {
-  --rw: #0f766e;
-  --rw-soft: #e6f7f4;
-  --rw-line: #9fd8cf;
-  --math: #324dc8;
-  --math-soft: #e8edfb;
-  --math-line: #b6c3f0;
-  --all: #2c3140;
-  --all-soft: #eef0f4;
-  --all-line: #c9cede;
-
-  --easy: #15803d;
-  --medium: #b45309;
-  --hard: #be123c;
-
-  position: relative;
   height: 100%; overflow-y: auto;
   display: flex; flex-direction: column;
-  background: #f2f3f7;              /* flat ground, no gradient wash */
+  background: var(--bg);
 }
-.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 44px 28px 28px; }
 
-/* ---- header ---- */
+/* ---- header: the same band and dashed rule as the practice view ---- */
+.home-top {
+  flex: none;
+  background-color: var(--chrome);
+  background-image: var(--rule);
+  background-size: 100% 2px; background-repeat: repeat-x; background-position: left bottom;
+}
 .hero {
+  width: 100%; max-width: 940px; margin: 0 auto;
   display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 28px; flex-wrap: wrap; margin-bottom: 26px;
+  gap: 28px; flex-wrap: wrap; padding: 20px 28px 22px;
 }
 .hero-id { min-width: 0; }
 .hero-title {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 30px; font-weight: 700;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
+  margin: 0; font-family: var(--serif);
+  font-size: 28px; font-weight: 700; line-height: 1.08; letter-spacing: -.02em;
   color: var(--ink);
 }
-.hero-sub {
-  margin: 6px 0 0;
-  font-size: 14.5px; line-height: 1.45; letter-spacing: 0;
-  color: var(--muted);
-}
+.hero-sub { margin: 5px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
 
 .hero-stats { display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; }
 .hero-progress { min-width: 190px; }
 .hero-progress-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 .hero-progress-label {
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--muted);
+  text-transform: uppercase; color: var(--ink-2);
 }
 .hero-progress-value {
   font-family: var(--serif); font-size: 14px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.hero-progress-value .dim { color: var(--muted); font-weight: 400; }
-.meter { height: 6px; border-radius: 999px; background: #dfe2ea; overflow: hidden; }
+.hero-progress-value .dim { color: var(--ink-2); font-weight: 400; }
+.meter { height: 6px; border-radius: 999px; background: #fff; border: 1px solid var(--chrome-line); overflow: hidden; }
 .meter-fill {
-  display: block; height: 100%; border-radius: 999px; min-width: 3px;
-  background: linear-gradient(90deg, var(--rw), var(--math));
-  transition: width .5s cubic-bezier(.22, 1, .36, 1);
+  display: block; height: 100%; background: var(--accent); min-width: 2px;
+  transition: width .4s ease-out;
 }
-.hero-figure { display: flex; flex-direction: column; gap: 0; }
+.hero-figure { display: flex; flex-direction: column; }
 .hero-figure-n {
-  font-family: var(--serif);
-  font-size: 22px; font-weight: 700; letter-spacing: -.015em;
-  font-variant-numeric: tabular-nums; line-height: 1.15;
+  font-family: var(--serif); font-size: 21px; font-weight: 700;
+  letter-spacing: -.015em; font-variant-numeric: tabular-nums; line-height: 1.15;
 }
 .hero-figure-l {
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--muted);
+  text-transform: uppercase; color: var(--ink-2);
 }
+
+.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 24px 28px 28px; }
 
 /* ---- primary choice ---- */
 .picker-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.picker-head h2 {
-  margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink);
-}
+.picker-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
 .reset {
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
   background: none; border: none; cursor: pointer; padding: 4px 10px;
-  border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+  border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
 }
-.reset:hover { background: #e4e7ee; color: var(--ink); }
+.reset:hover { background: rgba(0, 0, 0, .06); color: var(--ink); }
 .reset:active { transform: scale(.96); }
 
+/* Modelled on the answer-choice box: 1px #aeaeae, 10px radius, and the same
+   2px blue edge inside a pale ring when chosen. */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .card {
-  --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
-  position: relative; overflow: hidden; text-align: left; cursor: pointer;
-  background: var(--bg); border: 1px solid transparent;
-  border-radius: 12px; padding: 18px 18px 17px;
-  display: flex; flex-direction: column; gap: 3px;
-  box-shadow: 0 1px 2px rgba(16, 20, 30, .07), 0 0 0 1px rgba(16, 20, 30, .05);
-  transition: box-shadow .16s, transform .16s, background .16s;
+  text-align: left; cursor: pointer; background: var(--bg);
+  border: 1px solid var(--line-2); border-radius: var(--r-md);
+  padding: 15px 16px 16px;
+  display: flex; flex-direction: column; gap: 2px;
+  transition: border-color .1s, box-shadow .1s;
 }
-.card.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
-.card.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
-.card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 20, 30, .1), 0 0 0 1px rgba(16, 20, 30, .07); }
-.card:active { transform: translateY(0) scale(.99); }
+.card:hover { border-color: var(--ink-2); }
+.card:active { transform: scale(.995); }
 .card.on {
-  background: var(--tone-soft);
-  box-shadow: 0 0 0 2px var(--tone), 0 6px 16px rgba(16, 20, 30, .09);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring);
 }
-.card.tone-all.on { box-shadow: 0 0 0 2px #97a0b4, 0 6px 16px rgba(16, 20, 30, .09); }
 .card-n {
-  font-family: var(--serif);
-  font-size: 28px; font-weight: 700; letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums; color: var(--tone); line-height: 1.1;
+  font-family: var(--serif); font-size: 26px; font-weight: 700;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  color: var(--ink); line-height: 1.15;
 }
-.card-t { margin-top: 4px; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; }
+.card.on .card-n { color: var(--accent); }
+.card-t { margin-top: 3px; font-size: 15px; font-weight: 700; }
 .card-b { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-.card.on .card-b { color: var(--ink-2); }
 
-/* ---- refinements: one panel, labels down the left ---- */
+/* ---- refinements: grey band label, dashed rules, like the question band ---- */
 .refine {
-  margin-top: 22px; background: var(--bg); border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(16, 20, 30, .07), 0 0 0 1px rgba(16, 20, 30, .05);
+  margin-top: 22px; border: 1px solid var(--line-2); border-radius: var(--r-md);
   overflow: hidden;
 }
 .refine-row {
-  display: grid; grid-template-columns: 92px 1fr; gap: 16px;
-  align-items: start; padding: 14px 20px;
+  display: grid; grid-template-columns: 104px 1fr; gap: 14px;
+  align-items: start; padding: 12px 16px; background: var(--bg);
 }
-.refine-row + .refine-row { border-top: 1px solid var(--line); }
+.refine-row + .refine-row {
+  background-image: var(--rule);
+  background-size: 100% 2px; background-repeat: repeat-x; background-position: left top;
+}
 .refine-label {
   font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
-  text-transform: uppercase; color: var(--muted); padding-top: 9px;
+  text-transform: uppercase; color: var(--ink-2); padding-top: 8px;
 }
-.refine-hint { margin: 0; padding-top: 8px; font-size: 13.5px; color: var(--muted); }
+.refine-hint { margin: 0; padding-top: 7px; font-size: 13.5px; color: var(--muted); }
 
-/* ---- chips ---- */
-.chips { display: flex; gap: 7px; flex-wrap: wrap; }
-/* Zero-height full-width item: forces the next chip onto a new line so the
-   Reading and Writing group never shares a row with the Math group. */
+/* ---- chips: 999px, exactly as College Board draws every control ---- */
+.chips { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .chips-break { flex-basis: 100%; height: 0; }
+/* Sections are told apart by a caption, not by an invented hue. */
+.chips-caption {
+  flex-basis: 100%;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 4px 0 -2px;
+}
 .chip {
-  --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
   position: relative; overflow: hidden;
   display: inline-flex; align-items: center; gap: 7px;
-  background: var(--bg); border: 1px solid var(--line-2); border-radius: 7px;
-  padding: 7px 12px; font: inherit; font-size: 13.5px; font-weight: 500;
-  color: var(--ink-2); cursor: pointer;
-  transition: border-color .14s, background .14s, color .14s, transform .14s;
+  background: var(--bg); border: 1px solid var(--line-2); border-radius: 999px;
+  padding: 7px 14px; font: inherit; font-size: 13.5px; font-weight: 500;
+  color: var(--ink); cursor: pointer;
+  transition: border-color .1s, background .1s, color .1s;
 }
-.chip.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
-.chip.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
 .chip:has(.chip-n) { padding-right: 7px; }
-.chip:hover { border-color: var(--tone); background: var(--tone-soft); color: var(--ink); }
+.chip:hover { border-color: var(--ink-2); }
 .chip:active { transform: scale(.97); }
-.chip.on { background: var(--tone); border-color: var(--tone); color: #fff; font-weight: 600; }
-.chip.tone-all.on {
-  background: #e8ebf2; border-color: #97a0b4; color: var(--ink);
-  box-shadow: inset 0 0 0 1px #97a0b4;
+.chip.on {
+  background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
 }
-.chip.tone-all.on .chip-n { background: rgba(255, 255, 255, .85); color: var(--ink-2); }
 .chip-n {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 19px; padding: 0 6px; border-radius: 5px;
-  background: var(--tone-soft); color: var(--tone);
+  min-width: 26px; height: 20px; padding: 0 7px; border-radius: 999px;
+  background: var(--band); color: var(--ink-2);
   font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.chip.on .chip-n { background: rgba(255, 255, 255, .22); color: #fff; }
+.chip.on .chip-n { background: rgba(255, 255, 255, .24); color: #fff; }
 
 /* How much of this domain you have attempted. Ambient, not a labelled bar. */
 .chip-meter {
   position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-  background: var(--tone); opacity: .5;
-  transform-origin: left center;
-  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
+  background: var(--accent); opacity: .45;
+  transform-origin: left center; transition: transform .4s ease-out;
 }
-.chip.on .chip-meter { background: #fff; opacity: .85; }
+.chip.on .chip-meter { background: #fff; opacity: .8; }
 
-/* Difficulty is a scale, so it gets the conventional traffic colours. */
-.chip.diff-E { --tone: var(--easy); --tone-soft: #eaf6ee; --tone-line: #a8d6b8; }
-.chip.diff-M { --tone: var(--medium); --tone-soft: #fbf1e6; --tone-line: #e3bd8c; }
-.chip.diff-H { --tone: var(--hard); --tone-soft: #fdecf0; --tone-line: #efaebe; }
-.diff-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: none; }
-.chip.on .diff-dot { background: #fff; }
-
-/* ---- start bar: a material, not a strip ---- */
+/* ---- start bar: mirrors the practice footer, band + dashed rule + blue pill ---- */
 .startbar {
-  position: sticky; bottom: 0; z-index: 10;
-  padding: 26px 28px 20px;
-  background: linear-gradient(180deg,
-    rgba(242, 243, 247, 0) 0%, rgba(242, 243, 247, .88) 45%, #f2f3f7 100%);
-  pointer-events: none;
+  position: sticky; bottom: 0; z-index: 10; flex: none;
+  background-color: var(--chrome);
+  background-image: var(--rule);
+  background-size: 100% 2px; background-repeat: repeat-x; background-position: left top;
 }
 .startbar-inner {
-  pointer-events: auto;
   max-width: 940px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 10px 11px 10px 22px; border-radius: 12px;
-  background: rgba(255, 255, 255, .74);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: 0 8px 26px rgba(16, 20, 30, .14), 0 0 0 1px rgba(16, 20, 30, .07);
+  padding: 13px 28px;
 }
 .count { color: var(--ink-2); font-size: 14px; }
 .count strong {
-  font-family: var(--serif);
-  color: var(--ink); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+  font-family: var(--serif); color: var(--ink);
+  font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .startbar-inner { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
-}
 @media (prefers-reduced-motion: reduce) {
-  .card, .chip, .reset { transition: background .12s, border-color .12s, color .12s; }
-  .card:hover, .card:active, .chip:active, .reset:active { transform: none; }
+  .card:active, .chip:active, .reset:active { transform: none; }
   .meter-fill, .chip-meter { transition: none; }
-}
-@media (prefers-contrast: more) {
-  .chip { border-color: var(--ink-2); }
-  .startbar-inner { background: #fff; }
 }
 @media (max-width: 720px) {
   .cards { grid-template-columns: 1fr; }
@@ -398,6 +362,11 @@ button { font-family: inherit; }
   background-size: 100% 2px; background-repeat: repeat-x; background-position: left bottom;
   margin: 0 0 16px; padding: 3px 10px 5px 0;
 }
+.q-head.is-marked {
+  background-color: var(--red-soft);
+  box-shadow: inset 4px 0 0 var(--red);
+  padding-left: 10px;
+}
 .q-num {
   flex: none; min-width: 42px; height: 28px; padding: 0 7px; border-radius: 2px;
   background: var(--ink); color: #fff;
@@ -410,7 +379,7 @@ button { font-family: inherit; }
   border-radius: 4px; cursor: pointer; font-size: 15px; color: var(--ink);
 }
 .markbtn:hover { background: rgba(0, 0, 0, .06); }
-.markbtn.on { color: var(--accent); }
+.markbtn.on { color: var(--red); font-weight: 600; }
 .q-head-spacer { flex: 1; }
 .q-meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
@@ -624,7 +593,7 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 .key-first { background: var(--green); }
 .key-retry { background: var(--yellow); }
 .key-wrong { background: var(--red); }
-.key-flag { color: var(--accent); }
+.key-flag { color: var(--red); }
 
 .nav-grid {
   display: grid; grid-template-columns: repeat(10, 1fr);
@@ -641,7 +610,7 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 .nav-cell.is-wrong { background: var(--red);   border: 1px solid var(--red);   color: #fff; }
 .nav-cell:hover { border-color: var(--ink-2); }
 .nav-cell.is-current { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-.cell-flag { position: absolute; top: 3px; right: 3px; color: var(--accent); }
+.cell-flag { position: absolute; top: 3px; right: 3px; color: var(--red); }
 .nav-cell.is-first .cell-flag,
 .nav-cell.is-wrong .cell-flag { color: #fff; }
 .nav-foot { padding: 0 20px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }

@@ -379,7 +379,9 @@ button { font-family: inherit; }
   border-radius: 4px; cursor: pointer; font-size: 15px; color: var(--ink);
 }
 .markbtn:hover { background: rgba(0, 0, 0, .06); }
-.markbtn.on { color: var(--red); font-weight: 600; }
+/* Marked: the ribbon turns red, the label stays black. */
+.markbtn.on { color: var(--ink); }
+.markbtn.on svg { color: var(--red); }
 .q-head-spacer { flex: 1; }
 .q-meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
@@ -688,42 +690,52 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
    right side is where the question lives. */
 .desmos-panel {
   position: absolute; z-index: 30;
-  background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--r-md);
-  box-shadow: 0 14px 44px rgba(16, 20, 30, .22);
+  background: var(--bg); border: 1px solid #1c1c1c; border-radius: 2px;
+  box-shadow: 0 14px 44px rgba(16, 20, 30, .28);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .desmos-panel.is-expanded {
   left: 0; top: 0; height: 100%;
   border-radius: 0; border-width: 0; box-shadow: none;
 }
-/* The split edge is the same 4px grey rule as the passage divider, and drags
-   the same way. Width comes from inline style so it can be dragged. */
+/* The split edge drags like the passage divider. */
 .desmos-split-grip {
   position: absolute; top: 0; right: 0; width: 4px; height: 100%;
   background: #888888; cursor: col-resize; touch-action: none;
 }
 .desmos-split-grip:hover { background: var(--ink-2); }
+
+/* Bluebook's calculator title bar: near-black, white bold title on the left, a
+   3x3 dot grid in the centre as the drag handle, expand and close on the right.
+   Measured off the real app at #1c1c1c and ~41px tall. */
 .desmos-head {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px 7px 10px; background: var(--chrome);
-  border-bottom: 1px solid var(--line);
+  flex: none; position: relative; height: 41px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 8px 0 14px; background: #1c1c1c;
   cursor: grab; touch-action: none; user-select: none;
 }
 body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-select: none; }
 .desmos-panel.is-expanded .desmos-head { cursor: default; }
-.desmos-grab { color: var(--muted); flex: none; }
+.desmos-title { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+/* Centred on the bar itself, not in the flex flow, so it stays put whatever
+   the title width is. */
+.desmos-grab {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: #fff; pointer-events: none;
+}
 .desmos-panel.is-expanded .desmos-grab { display: none; }
-.desmos-title { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--ink); }
 .desmos-btn {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 5px; border: none;
-  background: none; cursor: pointer; color: var(--ink-2);
+  width: 32px; height: 32px; border-radius: 3px; border: none;
+  background: none; cursor: pointer; color: #fff;
 }
-.desmos-btn:hover { background: rgba(0, 0, 0, .09); color: var(--ink); }
+.desmos-btn:last-of-type { margin-left: 0; }
+.desmos-btn:first-of-type { margin-left: auto; }
+.desmos-btn:hover { background: rgba(255, 255, 255, .16); }
 .desmos-host { flex: 1; min-height: 0; }
 .desmos-error { padding: 16px; color: var(--red); font-size: 14px; }
 
-/* Corner grip. The lines are drawn with a gradient so there is no extra svg. */
+/* Corner grip, drawn with a gradient so there is no extra svg. */
 .desmos-resize {
   position: absolute; right: 0; bottom: 0; width: 20px; height: 20px;
   cursor: nwse-resize; touch-action: none;

@@ -6,7 +6,7 @@ type Name =
   | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'chevron-up'
   | 'bookmark' | 'highlighter' | 'more' | 'close' | 'note' | 'calculator'
   | 'grip' | 'check' | 'sliders' | 'pin' | 'trash' | 'underline' | 'arrow-right'
-  | 'split' | 'expand' | 'shrink' | 'grip-h'
+  | 'split' | 'expand' | 'shrink' | 'grip-h' | 'dots9'
 
 const PATHS: Record<Name, string> = {
   'chevron-left': 'M15 18l-6-6 6-6',
@@ -27,8 +27,9 @@ const PATHS: Record<Name, string> = {
   underline: 'M6 4v6a6 6 0 0012 0V4M4 20h16',
   'arrow-right': 'M5 12h14M13 6l6 6-6 6',
   split: 'M12 4v16',
-  expand: 'M9 3H3v6M3 3l7 7M15 21h6v-6M21 21l-7-7',
-  shrink: 'M3 9h6V3M10 10L3 3M21 15h-6v6M14 14l7 7',
+  expand: 'M20 4l-6.5 6.5M20 4v5M20 4h-5M4 20l6.5-6.5M4 20v-5M4 20h5',
+  shrink: 'M4 10.5l6.5-6.5M10.5 4v6.5M10.5 10.5H4M20 13.5l-6.5 6.5M13.5 20v-6.5M13.5 13.5H20',
+  dots9: 'M6 6h.01M12 6h.01M18 6h.01M6 12h.01M12 12h.01M18 12h.01M6 18h.01M12 18h.01M18 18h.01',
   'grip-h': 'M5 9h14M5 15h14',
 }
 

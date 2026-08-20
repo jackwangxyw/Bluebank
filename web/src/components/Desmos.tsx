@@ -34,6 +34,29 @@ function loadDesmos(): Promise<void> {
   return loader
 }
 
+/**
+ * Configured as a testing calculator rather than the full authoring tool.
+ *
+ * `restrictedFunctions` is Desmos's own option for this: "Show a restricted
+ * menu of available functions", which is what standardized tests run. The rest
+ * turn off authoring and import affordances that have no place in a practice
+ * question and that Bluebook does not offer either.
+ *
+ * This is the public Desmos API build with test options set. It is NOT College
+ * Board's own bundle, which is theirs and not ours to ship.
+ */
+const CONFIG = {
+  restrictedFunctions: true,   // the standardized-testing function menu
+  folders: false,              // no authoring the expression list
+  notes: false,
+  images: false,
+  links: false,
+  pasteGraphLink: false,       // no importing a graph from a URL
+  pasteTableData: false,       // no pasting in a dataset
+  expressionsCollapsed: false,
+  border: false,
+}
+
 const MIN_W = 360
 const MIN_H = 300
 
@@ -44,10 +67,13 @@ interface Rect { x: number; y: number; w: number; h: number }
  * state so it survives unmount: reopening the calculator puts it back where you
  * left it, which is what the real app does.
  *
- * Defaults to the LEFT edge. Bluebook opens it there, and on a split-pane
- * reading question the right side is where the question lives.
+ * Defaults to the LEFT edge, and to a PORTRAIT shape (~420x580, measured off
+ * the real app). The aspect matters: Desmos lays itself out responsively, so a
+ * narrow container stacks the graph above the expression list, which is what
+ * Bluebook shows. A landscape container puts expressions down the left instead
+ * and looks nothing like the real thing.
  */
-const remembered: Rect = { x: 20, y: 14, w: 560, h: 520 }
+const remembered: Rect = { x: 20, y: 14, w: 420, h: 580 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -73,10 +99,7 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
     loadDesmos()
       .then(() => {
         if (cancelled || !host.current || !window.Desmos) return
-        calc.current = window.Desmos.GraphingCalculator(host.current, {
-          expressionsCollapsed: false,
-          border: false,
-        })
+        calc.current = window.Desmos.GraphingCalculator(host.current, CONFIG)
       })
       .catch((e: Error) => !cancelled && setError(e.message))
     return () => {
@@ -175,20 +198,20 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
          role="dialog"
          aria-label="Graphing calculator">
       <div className="desmos-head" onPointerDown={onTitleDown}>
-        <Icon name="grip-h" size={16} className="desmos-grab" />
-        <span className="desmos-title">Graphing Calculator</span>
+        <span className="desmos-title">Calculator</span>
+        <Icon name="dots9" size={23} className="desmos-grab" strokeWidth={3.4} />
         <button className="desmos-btn"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => setExpanded((v) => !v)}
-                title={expanded ? 'Restore to a floating window' : 'Expand to a split screen'}
+                title={expanded ? 'Restore to a floating window' : 'Expand'}
                 aria-pressed={expanded}>
-          <Icon name={expanded ? 'shrink' : 'expand'} size={16} strokeWidth={2} />
+          <Icon name={expanded ? 'shrink' : 'expand'} size={19} strokeWidth={1.9} />
         </button>
         <button className="desmos-btn"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={onClose}
                 title="Close calculator">
-          <Icon name="close" size={16} strokeWidth={2} />
+          <Icon name="close" size={21} strokeWidth={1.9} />
         </button>
       </div>
 

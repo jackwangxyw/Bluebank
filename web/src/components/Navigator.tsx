@@ -39,20 +39,19 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
           <span><i className="key key-first" /> Right first try</span>
           <span><i className="key key-retry" /> Right after retry</span>
           <span><i className="key key-wrong" /> Wrong</span>
-          <span><Icon name="bookmark" size={15} className="key-flag" /> Marked</span>
+          <span><i className="key key-marked" /> Marked</span>
         </div>
 
         <div className="nav-grid">
           {items.map((item, index) => (
             <button
               key={item.id}
-              className={`nav-cell is-${cellState(item)}${index === current ? ' is-current' : ''}`}
+              className={`nav-cell is-${cellState(item)}`
+                + (index === current ? ' is-current' : '')
+                + (item.flagged ? ' is-flagged' : '')}
               onClick={() => { onGo(index); onClose() }}
               title={`${item.skill_name} · ${item.difficulty}`}
             >
-              {item.flagged ? (
-                <Icon name="bookmark" size={11} className="cell-flag" strokeWidth={2.4} />
-              ) : null}
               {index + 1}
             </button>
           ))}

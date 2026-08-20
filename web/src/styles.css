@@ -66,159 +66,94 @@ button { font-family: inherit; }
 
 /* ============================ home ============================ */
 /*
- * The home page was reading as generated because it had its own invented visual
- * language: a teal/blue two-hue system, a gradient ground, soft shadows and
- * squared chips. None of that is College Board.
+ * Sans only. Structure comes from hairlines and whitespace rather than boxed
+ * panels with shadows, and the page opens with nothing chosen: only the three
+ * section cards, with each following row appearing as the choice above it is
+ * made.
  *
- * Measured from satsuite.collegeboard.org, satsuitequestionbank.collegeboard.org
- * and bluebook.collegeboard.org, all three agree on the same four values:
- *
- *      #324DC7   rgb(50, 77, 199)    the blue, on every primary control
- *      #1E1E1E   rgb(30, 30, 30)     text
- *      #F0F0F0   rgb(240, 240, 240)  the one grey surface
- *      #FFFFFF                       everything else
- *
- * Buttons are that blue, white text, 999px. Radii are 999px or nothing. There
- * is no second hue anywhere.
- *
- * So this page is now built from the practice view's own parts rather than a
- * parallel design: the pale header band with its dashed rule, the grey question
- * band, choice-box borders, and a footer band with a blue pill. The two screens
- * are the same product.
+ * The proportions are borrowed from how well-made product pages handle this
+ * (linear.app, stripe.com): a big confident number, everything else small and
+ * quiet, tight negative tracking at display size, generous vertical rhythm, one
+ * accent colour and no decorative fills. The accent stays College Board's
+ * #324DC7 so the page belongs to the same product as the practice view.
  */
 .home {
   height: 100%; overflow-y: auto;
   display: flex; flex-direction: column;
   background: var(--bg);
 }
+.home-inner {
+  flex: 1 0 auto; width: 100%; max-width: 860px; margin: 0 auto;
+  padding: 72px 32px 40px;
+}
 
-/* ---- header: the same band and dashed rule as the practice view ---- */
-.home-top {
-  flex: none;
-  background-color: var(--chrome);
-  background-image: var(--rule);
-  background-size: 100% 2px; background-repeat: repeat-x; background-position: left bottom;
-}
-.hero {
-  width: 100%; max-width: 940px; margin: 0 auto;
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 28px; flex-wrap: wrap; padding: 20px 28px 22px;
-}
-.hero-id { min-width: 0; }
+/* ---- header ---- */
+.hero { margin-bottom: 56px; }
 .hero-title {
-  margin: 0; font-family: var(--serif);
-  font-size: 28px; font-weight: 700; line-height: 1.08; letter-spacing: -.02em;
+  margin: 0;
+  font-size: 36px; font-weight: 700; line-height: 1.05;
+  letter-spacing: -.035em;             /* tight, negative, scaled to the size */
   color: var(--ink);
 }
-.hero-sub { margin: 5px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
-
-.hero-stats { display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; }
-.hero-progress { min-width: 190px; }
-.hero-progress-head {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
-  margin-bottom: 6px;
-}
-.hero-progress-label {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--ink-2);
-}
-.hero-progress-value {
-  font-family: var(--serif); font-size: 14px; font-weight: 700;
+.hero-sub {
+  margin: 10px 0 0;
+  font-size: 15px; line-height: 1.5; color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.hero-progress-value .dim { color: var(--ink-2); font-weight: 400; }
-.meter { height: 6px; border-radius: 999px; background: #fff; border: 1px solid var(--chrome-line); overflow: hidden; }
-.meter-fill {
-  display: block; height: 100%; background: var(--accent); min-width: 2px;
-  transition: width .4s ease-out;
-}
-.hero-figure { display: flex; flex-direction: column; }
-.hero-figure-n {
-  font-family: var(--serif); font-size: 21px; font-weight: 700;
-  letter-spacing: -.015em; font-variant-numeric: tabular-nums; line-height: 1.15;
-}
-.hero-figure-l {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--ink-2);
+.hero-dot { margin: 0 8px; color: var(--line-2); }
+
+/* ---- small quiet section labels ---- */
+.label {
+  margin: 0 0 14px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
 }
 
-.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 24px 28px 28px; }
-
-/* ---- primary choice ---- */
-.picker-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.picker-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
-.reset {
-  display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
-  background: none; border: none; cursor: pointer; padding: 4px 10px;
-  border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
-}
-.reset:hover { background: rgba(0, 0, 0, .06); color: var(--ink); }
-.reset:active { transform: scale(.96); }
-
-/* Modelled on the answer-choice box: 1px #aeaeae, 10px radius, and the same
-   2px blue edge inside a pale ring when chosen. */
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+/* ---- section cards ---- */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .card {
-  text-align: left; cursor: pointer; background: var(--bg);
-  border: 1px solid var(--line-2); border-radius: var(--r-md);
-  padding: 15px 16px 16px;
-  display: flex; flex-direction: column; gap: 2px;
-  transition: border-color .1s, box-shadow .1s;
+  position: relative; text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 10px; padding: 20px 18px 18px;
+  display: flex; flex-direction: column;
+  transition: border-color .12s, background .12s;
 }
-.card:hover { border-color: var(--ink-2); }
+.card:hover { border-color: var(--line-2); }
 .card:active { transform: scale(.995); }
-.card.on {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-ring);
-}
+.card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .card-n {
-  font-family: var(--serif); font-size: 26px; font-weight: 700;
-  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
-  color: var(--ink); line-height: 1.15;
+  font-size: 30px; font-weight: 700; letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums; line-height: 1; color: var(--ink);
 }
 .card.on .card-n { color: var(--accent); }
-.card-t { margin-top: 3px; font-size: 15px; font-weight: 700; }
-.card-b { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.card-t { margin-top: 12px; font-size: 14.5px; font-weight: 650; letter-spacing: -.008em; }
+.card-b { margin-top: 3px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 
-/* ---- refinements: grey band label, dashed rules, like the question band ---- */
-.refine {
-  margin-top: 22px; border: 1px solid var(--line-2); border-radius: var(--r-md);
-  overflow: hidden;
-}
-.refine-row {
-  display: grid; grid-template-columns: 104px 1fr; gap: 14px;
-  align-items: start; padding: 12px 16px; background: var(--bg);
-}
-.refine-row + .refine-row {
-  background-image: var(--rule);
-  background-size: 100% 2px; background-repeat: repeat-x; background-position: left top;
-}
-.refine-label {
-  font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
-  text-transform: uppercase; color: var(--ink-2); padding-top: 8px;
-}
-.refine-hint { margin: 0; padding-top: 7px; font-size: 13.5px; color: var(--muted); }
+/* ---- refinements: hairline rows, no surrounding box ---- */
+.refine { margin-top: 48px; }
+.row { padding: 26px 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: none; padding-top: 0; }
 
-/* ---- chips: 999px, exactly as College Board draws every control ---- */
+/* ---- chips ---- */
 .chips { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
-.chips-break { flex-basis: 100%; height: 0; }
-/* Sections are told apart by a caption, not by an invented hue. */
-.chips-caption {
+.brk { flex-basis: 100%; height: 0; }
+.cap {
   flex-basis: 100%;
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
   text-transform: uppercase; color: var(--muted);
-  margin: 4px 0 -2px;
+  margin: 10px 0 -1px;
 }
+.chips > .cap:first-child { margin-top: 2px; }
 .chip {
   position: relative; overflow: hidden;
   display: inline-flex; align-items: center; gap: 7px;
-  background: var(--bg); border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 14px; font: inherit; font-size: 13.5px; font-weight: 500;
-  color: var(--ink); cursor: pointer;
-  transition: border-color .1s, background .1s, color .1s;
+  color: var(--ink-2); cursor: pointer;
+  transition: border-color .12s, background .12s, color .12s;
 }
 .chip:has(.chip-n) { padding-right: 7px; }
-.chip:hover { border-color: var(--ink-2); }
+.chip:hover { border-color: var(--line-2); color: var(--ink); }
 .chip:active { transform: scale(.97); }
 .chip.on {
   background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
@@ -226,45 +161,40 @@ button { font-family: inherit; }
 .chip-n {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 26px; height: 20px; padding: 0 7px; border-radius: 999px;
-  background: var(--band); color: var(--ink-2);
+  background: var(--bg-soft); color: var(--muted);
   font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.chip.on .chip-n { background: rgba(255, 255, 255, .24); color: #fff; }
+.chip.on .chip-n { background: rgba(255, 255, 255, .22); color: #fff; }
 
 /* How much of this domain you have attempted. Ambient, not a labelled bar. */
 .chip-meter {
   position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-  background: var(--accent); opacity: .45;
+  background: var(--accent); opacity: .4;
   transform-origin: left center; transition: transform .4s ease-out;
 }
-.chip.on .chip-meter { background: #fff; opacity: .8; }
+.chip.on .chip-meter { background: #fff; opacity: .75; }
 
-/* ---- start bar: mirrors the practice footer, band + dashed rule + blue pill ---- */
+/* ---- start bar ---- */
 .startbar {
   position: sticky; bottom: 0; z-index: 10; flex: none;
-  background-color: var(--chrome);
-  background-image: var(--rule);
-  background-size: 100% 2px; background-repeat: repeat-x; background-position: left top;
+  background: var(--bg); border-top: 1px solid var(--line);
 }
 .startbar-inner {
-  max-width: 940px; margin: 0 auto;
+  max-width: 860px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 13px 28px;
+  padding: 14px 32px;
 }
-.count { color: var(--ink-2); font-size: 14px; }
-.count strong {
-  font-family: var(--serif); color: var(--ink);
-  font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
-}
+.count { color: var(--muted); font-size: 14px; }
+.count strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
-  .card:active, .chip:active, .reset:active { transform: none; }
-  .meter-fill, .chip-meter { transition: none; }
+  .card:active, .chip:active { transform: none; }
+  .chip-meter { transition: none; }
 }
 @media (max-width: 720px) {
+  .home-inner { padding: 44px 20px 32px; }
   .cards { grid-template-columns: 1fr; }
-  .refine-row { grid-template-columns: 1fr; gap: 8px; }
-  .refine-label { padding-top: 0; }
+  .startbar-inner { padding: 12px 20px; }
 }
 
 /* ============================ shell ============================ */
@@ -362,11 +292,7 @@ button { font-family: inherit; }
   background-size: 100% 2px; background-repeat: repeat-x; background-position: left bottom;
   margin: 0 0 16px; padding: 3px 10px 5px 0;
 }
-.q-head.is-marked {
-  background-color: var(--red-soft);
-  box-shadow: inset 4px 0 0 var(--red);
-  padding-left: 10px;
-}
+
 .q-num {
   flex: none; min-width: 42px; height: 28px; padding: 0 7px; border-radius: 2px;
   background: var(--ink); color: #fff;
@@ -595,7 +521,14 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 .key-first { background: var(--green); }
 .key-retry { background: var(--yellow); }
 .key-wrong { background: var(--red); }
-.key-flag { color: var(--red); }
+.key-marked {
+  position: relative; background: var(--bg); border: 1px solid var(--line-2);
+  border-top-right-radius: 0;
+}
+.key-marked::after {
+  content: ''; position: absolute; top: 0; right: 0; width: 8px; height: 8px;
+  background: linear-gradient(225deg, var(--red) 0 50%, transparent 50%);
+}
 
 .nav-grid {
   display: grid; grid-template-columns: repeat(10, 1fr);
@@ -612,9 +545,28 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 .nav-cell.is-wrong { background: var(--red);   border: 1px solid var(--red);   color: #fff; }
 .nav-cell:hover { border-color: var(--ink-2); }
 .nav-cell.is-current { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-.cell-flag { position: absolute; top: 3px; right: 3px; color: var(--red); }
-.nav-cell.is-first .cell-flag,
-.nav-cell.is-wrong .cell-flag { color: #fff; }
+.nav-cell.is-flagged {
+  /* The ribbon needs a hard corner to fold over. */
+  border-top-right-radius: 0;
+}
+.nav-cell.is-flagged::after {
+  content: ''; position: absolute; top: 0; right: 0;
+  width: 22px; height: 22px;
+  /* Two stacked triangles: a slightly larger white one behind the red, which
+     leaves a white edge along the fold. Without it the ribbon disappears on a
+     cell that is itself red because the latest attempt was wrong. */
+  background:
+    linear-gradient(225deg, var(--red) 0 44%, transparent 44%),
+    linear-gradient(225deg, #fff 0 52%, transparent 52%);
+}
+/* The darker sliver under the fold is what makes it read as wrapping over the
+   corner rather than as a flat triangle stuck on top. */
+.nav-cell.is-flagged::before {
+  content: ''; position: absolute; top: 22px; right: 0;
+  width: 0; height: 0;
+  border-top: 4px solid #7d0a1d;
+  border-right: 4px solid transparent;
+}
 .nav-foot { padding: 0 20px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
 /* ---------- highlights & notes ---------- */

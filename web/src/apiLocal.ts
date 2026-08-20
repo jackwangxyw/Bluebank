@@ -1,0 +1,279 @@
+/**
+ * The static backend: no server at all.
+ *
+ * Fetches straight from College Board, normalises and grades in the browser,
+ * and keeps everything in IndexedDB. This is what runs on GitHub Pages.
+ *
+ * Loading is deliberately two-tier, and that is the whole point of the design:
+ *
+ *   - The INDEX is two requests and about 1.7 seconds for all 3,770 entries.
+ *     It carries id, section, domain, skill, difficulty and band, which is
+ *     everything the home page, the filters and the navigator need. The app is
+ *     fully usable once this lands.
+ *   - A question BODY is one request, fetched when you actually navigate to it
+ *     and then cached forever.
+ *
+ * Fetching all 3,767 bodies up front is what took five minutes. It is not
+ * necessary: you only ever download the questions you look at.
+ *
+ * Two honest limitations versus the localhost backend:
+ *   1. The answer key necessarily lives in the browser. It is kept out of
+ *      React state by `strip()` below, but it is in IndexedDB and anyone who
+ *      wants it can read it. There is no server to withhold it.
+ *   2. Progress here is entirely separate from the localhost SQLite database.
+ */
+import { grade } from './lib/grading'
+import { normaliseQuestion, type Stub } from './lib/normalize'
+import { byShuffleKey } from './lib/shuffle'
+import * as cb from './lib/cbApi'
+import * as store from './lib/store'
+import type {
+  Annotation, Filters, GradeResult, Question, SetItem, Stats, StoredQuestion, TaxonomyRow,
+} from './types'
+
+/** How many questions ahead to warm the cache while you read the current one. */
+const PREFETCH = 4
+
+interface Cache {
+  stubs: Stub[]
+  attempts: Map<string, store.Attempt[]>
+  flagged: Set<string>
+}
+
+let cache: Cache | null = null
+let booting: Promise<Cache> | null = null
+
+/** Index first, bodies later. Everything below waits on this. */
+async function boot(): Promise<Cache> {
+  if (cache) return cache
+  if (booting) return booting
+  booting = (async () => {
+    store.requestPersistence().catch(() => {})
+
+    let stubs = await store.loadIndex()
+    if (!stubs.length) {
+      stubs = await cb.fetchIndex()
+      await store.saveIndex(stubs)
+    }
+
+    const attempts = new Map<string, store.Attempt[]>()
+    for (const attempt of await store.loadAttempts()) {
+      const list = attempts.get(attempt.question_id)
+      if (list) list.push(attempt)
+      else attempts.set(attempt.question_id, [attempt])
+    }
+    for (const list of attempts.values()) list.sort((a, b) => a.answered_at - b.answered_at)
+
+    const flagged = new Set<string>()
+    for (const mark of await store.loadMarks()) {
+      if (mark.flagged) flagged.add(mark.question_id)
+    }
+
+    cache = { stubs, attempts, flagged }
+    return cache
+  })()
+  return booting
+}
+
+/** Force a re-read of the index from College Board, picking up new questions. */
+export async function refreshIndex(): Promise<number> {
+  const stubs = await cb.fetchIndex()
+  await store.saveIndex(stubs)
+  if (cache) cache.stubs = stubs
+  return stubs.length
+}
+
+async function loadFull(id: string): Promise<StoredQuestion> {
+  const cached = await store.loadQuestion(id)
+  if (cached) return cached
+  const { stubs } = await boot()
+  const stub = stubs.find((s) => s._id === id)
+  if (!stub) throw new Error(`unknown question ${id}`)
+  const raw = await cb.fetchDetail(stub)
+  const question = normaliseQuestion(stub, raw)
+  await store.saveQuestion(question)
+  return question
+}
+
+/** Best-effort cache warming. A failure here must never surface to the user. */
+function prefetch(ids: string[]): void {
+  for (const id of ids) loadFull(id).catch(() => {})
+}
+
+/**
+ * Drop the answer key before the question reaches React.
+ *
+ * This mirrors the shape the HTTP backend sends and keeps the key out of
+ * component state and the React devtools tree. It is not a security boundary:
+ * the record is still in IndexedDB. On a static site it cannot be.
+ */
+function strip(q: StoredQuestion): Question {
+  const { correct, explanations, rationale_html, flags, ...rest } = q
+  void correct; void explanations; void rationale_html; void flags
+  return rest
+}
+
+function lastAttempt(c: Cache, id: string): store.Attempt | null {
+  const list = c.attempts.get(id)
+  return list?.length ? list[list.length - 1] : null
+}
+
+function matches(stub: Stub, c: Cache, f: Filters): boolean {
+  if (f.section && stub._section !== f.section) return false
+  if (f.domain && stub.primary_class_cd !== f.domain) return false
+  if (f.skill && stub.skill_cd !== f.skill) return false
+  if (f.difficulty && stub.difficulty !== f.difficulty) return false
+  const last = lastAttempt(c, stub._id)
+  if (f.status === 'unseen') return !last
+  if (f.status === 'wrong') return last?.correct === 0
+  if (f.status === 'correct') return last?.correct === 1
+  if (f.status === 'flagged') return c.flagged.has(stub._id)
+  return true
+}
+
+function toSetItem(stub: Stub, c: Cache): SetItem {
+  const list = c.attempts.get(stub._id) ?? []
+  const last = list.length ? list[list.length - 1] : null
+  return {
+    id: stub._id,
+    section: stub._section,
+    domain: stub.primary_class_cd ?? '',
+    domain_name: stub.primary_class_cd_desc ?? '',
+    skill: stub.skill_cd ?? '',
+    skill_name: stub.skill_desc ?? '',
+    difficulty: stub.difficulty ?? ('' as SetItem['difficulty']),
+    band: stub.score_band_range_cd ?? null,
+    // The index does not say whether an item is MCQ or SPR; only the body does.
+    // The navigator does not use this, and QuestionView reads the real type off
+    // the loaded question, so reporting mcq here is safe.
+    type: 'mcq',
+    last_correct: last ? last.correct : null,
+    last_seconds: last ? last.seconds : null,
+    last_response: last ? last.response : null,
+    answered_at: last ? last.answered_at : null,
+    flagged: c.flagged.has(stub._id) ? 1 : 0,
+    attempt_count: list.length,
+  }
+}
+
+export async function taxonomy(): Promise<{ taxonomy: TaxonomyRow[]; stats: Stats }> {
+  const c = await boot()
+  const rows = new Map<string, TaxonomyRow>()
+  for (const stub of c.stubs) {
+    const key = [stub._section, stub.primary_class_cd, stub.skill_cd, stub.difficulty].join('|')
+    let row = rows.get(key)
+    if (!row) {
+      row = {
+        section: stub._section,
+        domain: stub.primary_class_cd ?? '',
+        domain_name: stub.primary_class_cd_desc ?? '',
+        skill: stub.skill_cd ?? '',
+        skill_name: stub.skill_desc ?? '',
+        difficulty: stub.difficulty ?? ('' as TaxonomyRow['difficulty']),
+        n: 0, seen: 0, correct: 0,
+      }
+      rows.set(key, row)
+    }
+    row.n++
+    const last = lastAttempt(c, stub._id)
+    if (last) {
+      row.seen++
+      row.correct += last.correct
+    }
+  }
+  return { taxonomy: [...rows.values()], stats: await stats() }
+}
+
+export async function questionSet(filters: Filters):
+    Promise<{ count: number; questions: SetItem[] }> {
+  const c = await boot()
+  const questions = c.stubs
+    .filter((stub) => matches(stub, c, filters))
+    .map((stub) => toSetItem(stub, c))
+    .sort(byShuffleKey)
+  return { count: questions.length, questions }
+}
+
+export async function question(id: string):
+    Promise<{ question: Question; annotations: Annotation[]; flagged: boolean }> {
+  const c = await boot()
+  const full = await loadFull(id)
+
+  const position = c.stubs.findIndex((s) => s._id === id)
+  if (position >= 0) {
+    prefetch(c.stubs.slice(position + 1, position + 1 + PREFETCH).map((s) => s._id))
+  }
+
+  const saved = await store.loadAnnotations(id)
+  return {
+    question: strip(full),
+    annotations: saved?.items ?? [],
+    flagged: c.flagged.has(id),
+  }
+}
+
+export async function answer(
+  id: string, response: string | null, seconds: number,
+): Promise<GradeResult> {
+  const c = await boot()
+  const full = await loadFull(id)
+  const result = grade(full, response)
+
+  const attempt: store.Attempt = {
+    id: crypto.randomUUID(),
+    question_id: id,
+    answered_at: Math.floor(Date.now() / 1000),
+    response,
+    correct: result.correct ? 1 : 0,
+    seconds,
+  }
+  await store.saveAttempt(attempt)
+  const list = c.attempts.get(id)
+  if (list) list.push(attempt)
+  else c.attempts.set(id, [attempt])
+
+  return result
+}
+
+export async function flag(id: string, flagged: boolean): Promise<{ flagged: boolean }> {
+  const c = await boot()
+  await store.saveMark(id, flagged)
+  if (flagged) c.flagged.add(id)
+  else c.flagged.delete(id)
+  return { flagged }
+}
+
+export async function saveAnnotations(id: string, annotations: Annotation[]):
+    Promise<{ annotations: Annotation[] }> {
+  // Ids are assigned here rather than by a database autoincrement.
+  const items = annotations.map((a, i) => ({ ...a, id: a.id ?? i + 1 }))
+  await store.saveAnnotations(id, items)
+  return { annotations: items }
+}
+
+export async function stats(): Promise<Stats> {
+  const c = await boot()
+  let attempts = 0
+  let correct = 0
+  const byDomain = new Map<string, { domain: string; domain_name: string; n: number; c: number }>()
+
+  for (const stub of c.stubs) {
+    const last = lastAttempt(c, stub._id)
+    if (!last) continue
+    attempts++
+    correct += last.correct
+    const key = stub.primary_class_cd ?? ''
+    const row = byDomain.get(key)
+      ?? { domain: key, domain_name: stub.primary_class_cd_desc ?? '', n: 0, c: 0 }
+    row.n++
+    row.c += last.correct
+    byDomain.set(key, row)
+  }
+
+  return {
+    attempts,
+    correct,
+    accuracy: attempts ? correct / attempts : null,
+    by_domain: [...byDomain.values()].sort((a, b) => b.n - a.n),
+  }
+}

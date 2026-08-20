@@ -65,7 +65,7 @@ def _set(conn, query, body):
         conn,
         section=_one(query, "section"), domain=_one(query, "domain"),
         skill=_one(query, "skill"), difficulty=_one(query, "difficulty"),
-        status=_one(query, "status"), order=_one(query, "order", "natural"))
+        status=_one(query, "status"), order=_one(query, "order", "shuffled"))
     return {"count": len(rows), "questions": rows}
 
 

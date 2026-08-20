@@ -1,55 +1,51 @@
-import type {
-  Annotation, Filters, GradeResult, Question, SetItem, Stats, TaxonomyRow,
-} from './types'
+/**
+ * Picks the data backend. Everything in the app goes through this module, and
+ * nothing else touches the network or storage.
+ *
+ *   apiHttp   localhost. The Python server owns SQLite, does the grading, and
+ *             withholds the answer key until you answer. Pulls the whole bank
+ *             up front, which is fine because it is local.
+ *   apiLocal  GitHub Pages. No server: fetches College Board directly, caches
+ *             in IndexedDB, grades in the browser. Loads the index up front
+ *             (~1.7s) and question bodies on demand.
+ *
+ * Chosen at BUILD time via VITE_BACKEND, not by probing at runtime: a runtime
+ * probe costs a failed request and a race on every cold load.
+ *
+ *   npm run build         -> http   (default)
+ *   npm run build:pages   -> local
+ *
+ * `?backend=local` or `?backend=http` overrides it for one page load, so the
+ * static path can be exercised against a dev server without a separate build.
+ *
+ * The two backends do NOT share progress. Answering on Pages does not appear on
+ * localhost. That is deliberate.
+ */
+import * as http from './apiHttp'
+import * as local from './apiLocal'
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data?.error ?? `${response.status} ${path}`)
-  return data as T
+export type BackendName = 'http' | 'local'
+
+function choose(): BackendName {
+  const override = new URLSearchParams(window.location.search).get('backend')
+  if (override === 'local' || override === 'http') return override
+  return import.meta.env.VITE_BACKEND === 'local' ? 'local' : 'http'
 }
 
-export function taxonomy() {
-  return call<{ taxonomy: TaxonomyRow[]; stats: Stats }>('/api/taxonomy')
-}
+export const backend: BackendName = choose()
 
-export function questionSet(filters: Filters) {
-  const query = new URLSearchParams(
-    Object.entries(filters).filter(([, v]) => v) as [string, string][],
-  )
-  return call<{ count: number; questions: SetItem[] }>(`/api/set?${query}`)
-}
+const impl = backend === 'local' ? local : http
 
-export function question(id: string) {
-  return call<{ question: Question; annotations: Annotation[]; flagged: boolean }>(
-    `/api/questions/${encodeURIComponent(id)}`,
-  )
-}
+export const taxonomy = impl.taxonomy
+export const questionSet = impl.questionSet
+export const question = impl.question
+export const answer = impl.answer
+export const flag = impl.flag
+export const saveAnnotations = impl.saveAnnotations
+export const stats = impl.stats
 
-export function answer(id: string, response: string | null, seconds: number) {
-  return call<GradeResult>(`/api/questions/${encodeURIComponent(id)}/answer`, {
-    method: 'POST',
-    body: JSON.stringify({ response, seconds }),
-  })
-}
-
-export function flag(id: string, flagged: boolean) {
-  return call<{ flagged: boolean }>(`/api/questions/${encodeURIComponent(id)}/flag`, {
-    method: 'POST',
-    body: JSON.stringify({ flagged }),
-  })
-}
-
-export function saveAnnotations(id: string, annotations: Annotation[]) {
-  return call<{ annotations: Annotation[] }>(
-    `/api/questions/${encodeURIComponent(id)}/annotations`,
-    { method: 'PUT', body: JSON.stringify({ annotations }) },
-  )
-}
-
-export function stats() {
-  return call<Stats>('/api/stats')
-}
+/**
+ * Re-read the index from College Board. Static backend only: on localhost the
+ * refresh is `python -m satbluebank build`.
+ */
+export const refreshIndex = backend === 'local' ? local.refreshIndex : null

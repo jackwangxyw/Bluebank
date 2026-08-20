@@ -45,6 +45,22 @@ export interface SetItem {
   attempt_count: number
 }
 
+/**
+ * The full normalised record, key included, as it is stored locally.
+ *
+ * The HTTP backend deliberately never sends this to the browser before you
+ * answer -- `Question` is the withheld shape. On GitHub Pages there is no
+ * server to withhold anything, so the key necessarily lives client-side and is
+ * only hidden by the UI. That is a real capability difference between the two
+ * backends, not an oversight.
+ */
+export interface StoredQuestion extends Question {
+  correct: string[]
+  explanations: Record<string, string> | null
+  rationale_html: string | null
+  flags: string[]
+}
+
 export interface Annotation {
   id?: number
   field: string

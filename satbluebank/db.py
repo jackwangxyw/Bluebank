@@ -1,4 +1,5 @@
 """SQLite schema and connection."""
+import hashlib
 import sqlite3
 from pathlib import Path
 
@@ -69,11 +70,60 @@ CREATE TABLE IF NOT EXISTS marks (
 """
 
 
+# FNV-1a, 64-bit, followed by a splitmix64 finalizer.
+#
+# The finalizer is not optional. Raw FNV-1a barely avalanches into the high
+# bits, which are exactly the bits that decide a sort: every id beginning "m"
+# hashed to 0x08a98..., every id beginning "r" to 0x08dc8..., so ordering by it
+# was really "sort by first character" and grouped the sections right back
+# together. The synthetic interleaving test in tests/test_backend.py catches
+# this; do not remove it.
+#
+# Chosen over blake2b/SHA so the TypeScript build can compute
+# the identical value: FNV is five lines in any language and needs no crypto
+# library, while blake2b has no browser equivalent and WebCrypto's SHA-256 is
+# async, which a sort comparator cannot use. web/src/lib/shuffle.ts is the twin
+# and tests/test_backend.py pins values shared by both.
+_FNV_OFFSET = 0xCBF29CE484222325
+_FNV_PRIME = 0x100000001B3
+_MASK64 = 0xFFFFFFFFFFFFFFFF
+
+
+def _mix(z):
+    """splitmix64 finalizer: spreads every input bit across all 64 output bits."""
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & _MASK64
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & _MASK64
+    return z ^ (z >> 31)
+
+
+def shuffle_key(question_id):
+    """A stable pseudo-random sort key for a question id.
+
+    Ordering a practice set by this interleaves the sections instead of running
+    all 1,922 Math questions before the first Reading one, while keeping the
+    order *fixed*: question 40 is the same question tomorrow, after a rebuild,
+    on another machine, and in the static build. Only questions newly added to
+    the bank move, and they slot in without disturbing the rest.
+
+    Do NOT reach for the builtin hash() here. Python randomises string hashing
+    per process unless PYTHONHASHSEED is set, so the set would reshuffle on
+    every server restart -- exactly the thing this avoids.
+
+    Masked to 63 bits because SQLite integers are signed and a full 64-bit
+    value would overflow to negative.
+    """
+    h = _FNV_OFFSET
+    for byte in question_id.encode("utf-8"):
+        h = ((h ^ byte) * _FNV_PRIME) & _MASK64
+    return _mix(h) & 0x7FFFFFFFFFFFFFFF
+
+
 def connect(path=None):
     path = Path(path or DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
+    conn.create_function("shuffle_key", 1, shuffle_key, deterministic=True)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     return conn

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RichText } from './RichText'
 import { Explanation } from './Explanation'
-import { FlagFilled, Icon } from './Icon'
+import { BookmarkFilled, Icon, SplitHandle } from './Icon'
 import type { Annotation, GradeResult, Question } from '../types'
 
 interface Props {
@@ -108,18 +108,17 @@ export function QuestionView(props: Props) {
       <div className="q-head">
         <span className="q-num">{number}</span>
         <button className={flagged ? 'markbtn on' : 'markbtn'} onClick={onToggleFlag}>
-          {flagged ? <FlagFilled size={16} /> : <Icon name="flag" size={16} />}
+          {flagged ? <BookmarkFilled size={17} /> : <Icon name="bookmark" size={17} />}
           <span>{flagged ? 'Marked for Review' : 'Mark for Review'}</span>
         </button>
 
         <span className="q-head-spacer" />
 
-        <span className="q-meta">{question.skill_name}</span>
-
-        {question.type === 'mcq' && !answered ? (
+        {question.type === 'mcq' ? (
           <button className={crossOutMode ? 'strike on' : 'strike'}
                   onClick={onToggleCrossOutMode}
                   aria-pressed={crossOutMode}
+                  disabled={answered}
                   title="Cross out answer choices">
             <span className="strike-letters">ABC</span>
           </button>
@@ -157,7 +156,7 @@ export function QuestionView(props: Props) {
                   <button className={isCrossed ? 'crossbtn on' : 'crossbtn'}
                           title={isCrossed ? 'Undo cross out' : `Cross out ${option.label}`}
                           onClick={() => onToggleCrossOut(option.label)}>
-                    {isCrossed ? 'Undo' : option.label}
+                    {option.label}
                   </button>
                 ) : null}
               </li>
@@ -187,11 +186,11 @@ export function QuestionView(props: Props) {
   return (
     <div className="qview">
       {isSplit ? (
-        <div className="split" style={{ gridTemplateColumns: `${split}% 1px 1fr` }}>
+        <div className="split" style={{ gridTemplateColumns: `${split}% 4px 1fr` }}>
           <div className="pane">{stimulus}</div>
           <div className="divider" onMouseDown={startDrag}>
             <span className="grab" onMouseDown={startDrag}>
-              <Icon name="grip" size={14} strokeWidth={2.4} />
+              <SplitHandle />
             </span>
           </div>
           <div className="pane">{prompt}</div>

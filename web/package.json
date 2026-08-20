@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:pages": "tsc -b && vite build --mode pages",
+    "preview:pages": "vite preview --outDir dist-pages"
   },
   "dependencies": {
     "better-react-mathjax": "^3.0.1",

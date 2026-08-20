@@ -13,8 +13,8 @@ unverified items without re-checking.
 ## 1. Where things stand
 
 **Working end to end.** Backend is complete and verified; the frontend has all
-the functionality and has had one UI pass against Bluebook screenshots plus a
-second pass toward OnePrep's cleaner chrome.
+the functionality and has had four UI passes (§8), the last of which was
+checked in a rendered browser (§9 says how).
 
 ```
 python -m satbluebank serve      # http://localhost:8000
@@ -33,8 +33,8 @@ Frontend dev with hot reload: `python -m satbluebank serve` in one terminal,
 | Questions with no answer key | **0** |
 | MCQs with per-choice explanations | 3,301 of 3,303 |
 | Questions flagged by the normalizer | **3** (all genuine source defects, §6) |
-| Backend tests | 29 passing |
-| Frontend tests | 12 passing |
+| Backend tests | 32 passing |
+| Frontend tests | 57 passing |
 | Local data on disk | 43 MB `raw/`, 47 MB `data/` (both gitignored) |
 | Code | ~1,780 lines Python, ~1,690 lines TypeScript |
 
@@ -178,9 +178,8 @@ bank is fetched on first run into gitignored local storage.
 **Current shape:** Python backend (stdlib only, zero dependencies) serving a
 JSON API plus the built React frontend. Local only.
 
-**Agreed next step, not started:** port the backend to TypeScript so the whole
-thing runs as a **static GitHub Pages site**. The user has approved this
-("typescript is fine").
+**Done (2026-08-19):** the backend is ported to TypeScript and the static
+GitHub Pages build works end to end. Both backends are kept. See section 7c.
 
 What the port involves, roughly 600–700 lines:
 
@@ -224,66 +223,377 @@ nothing right now and becomes a migration later.
 
 ---
 
+## 7b. Practice set ordering (added 2026-08-19)
+
+The default order is **`shuffled`**, not `natural`. Natural ordering is
+`section, domain, skill, difficulty, id`, and because `MATH` sorts before `RW`
+that put **all 1,922 Math questions before the first Reading one**, with every
+Easy question ahead of every Hard one inside each skill. Verified against the
+live bank: the first RW question sat at index 1922.
+
+`db.shuffle_key(question_id)` is a `blake2b` digest of the id, masked to 63
+bits, registered on the connection as a deterministic SQLite function and used
+as `ORDER BY shuffle_key(q.id)`.
+
+Why a hash of the id rather than a stored shuffle or a seeded RNG:
+
+- **Numbering stays put.** The same pool always comes back in the same order,
+  so "question 40" means the same question tomorrow, after a rebuild, and on
+  another machine. Verified across repeat calls, fresh connections, and
+  separate processes.
+- **Nothing to store.** No seed column, no migration, and it survives the
+  planned TypeScript/IndexedDB port unchanged (`blake2b` is in WebCrypto only
+  as SHA, so use SHA-256 there and re-pin the test literals deliberately).
+- **Pool updates barely disturb it.** New questions slot into the hash order;
+  existing questions keep their relative order instead of the whole set
+  renumbering.
+
+Measured after the change: first 100 questions are 56 Math / 44 RW against a
+bank that is 51% Math, and difficulties interleave.
+
+**Do not use the builtin `hash()`** for this. Python randomises string hashing
+per process unless `PYTHONHASHSEED` is set, so the set would reshuffle on every
+server restart, which is the exact failure this design avoids.
+`tests/test_backend.py::TestShuffleKey` pins two literal key values. If those
+ever change, every question number silently points somewhere else, so that test
+must fail loudly rather than be updated to match new output.
+
+`order=natural|difficulty|id` still work as explicit query parameters.
+
+---
+
+## 7c. Two backends: localhost and GitHub Pages
+
+Both work. Everything in the app goes through `web/src/api.ts`, which is a
+picker; nothing else in the frontend touches the network or storage.
+
+| | `apiHttp.ts` (localhost) | `apiLocal.ts` (Pages) |
+|---|---|---|
+| Data | Python server + SQLite | College Board direct + IndexedDB |
+| Loading | whole bank up front (`build`, ~5 min) | index up front (~1.7s), bodies on demand |
+| Grading | server | browser |
+| Answer key | withheld until you answer | necessarily in the browser |
+| Progress | `data/bluebank.db` | IndexedDB |
+
+Selected at BUILD time, not by probing:
+
+```
+npm run build         # -> dist/        localhost   (VITE_BACKEND unset)
+npm run build:pages   # -> dist-pages/  Pages       (.env.pages sets local)
+```
+
+`?backend=local` or `?backend=http` overrides for one page load, so the static
+path can be exercised against the dev server without a separate build.
+
+**Progress is deliberately NOT shared.** The user chose this. Answering on
+Pages does not appear on localhost.
+
+### Why the index/bodies split matters
+
+The five-minute load was never a per-visit cost (IndexedDB survives tab close),
+but it did not need to exist at all. Measured against the live API:
+
+| Tier | Requests | Time |
+|---|---|---|
+| Index (all 3,770 entries: id, section, domain, skill, difficulty, band) | **2** | **1.66s** |
+| One question body | 1 | ~80ms |
+
+The index is everything Home, the filters, and the navigator need. Bodies are
+fetched on navigation and prefetched 4 ahead. You never download the ~3,000
+questions you do not look at.
+
+### Verified end to end, in a real browser
+
+Not inferred. The built `dist-pages` was served at its real base path and
+driven over the DevTools Protocol:
+
+- CORS: all three College Board endpoints return 200 from a foreign origin.
+  Three previous handoffs flagged this as curl-only; it is now first-hand.
+- The static build loaded 3,767 questions with no server and no console errors,
+  and its section and domain counts match the localhost backend exactly.
+- A question was fetched, normalised, rendered (MathJax and inline SVG), and
+  graded in-browser; the score went 0/0 to 1/1.
+- Both backends return **byte-identical question ordering** (same first 12 ids),
+  so "question 40" means the same question in both.
+
+### The ordering hash changed: blake2b -> FNV-1a + splitmix64
+
+`shuffle_key` is now FNV-1a with a **splitmix64 finalizer**, in both
+`satbluebank/db.py` and `web/src/lib/shuffle.ts`, with pinned values shared
+between `tests/test_backend.py` and `web/src/lib/shuffle.test.ts`.
+
+blake2b was dropped because it has no browser equivalent and WebCrypto's
+SHA-256 is async, which a sort comparator cannot use. FNV is five lines in
+either language.
+
+**The finalizer is not decoration.** Raw FNV-1a barely avalanches into the high
+bits, and the high bits are what a sort reads: every id starting `m` hashed to
+`0x08a98...` and every id starting `r` to `0x08dc8...`, so the "shuffle" was
+really "sort by first character" and put the sections straight back into
+blocks. The real bank happened to interleave anyway, which is exactly how this
+would have shipped unnoticed. The synthetic interleaving test caught it. Keep
+that test.
+
+### The TypeScript port, and how it was verified
+
+| Module | Ported to | Verification |
+|---|---|---|
+| `grading.py` | `lib/grading.ts` + `lib/fraction.ts` | 2,282 canonical/fraction cases and 2,400 grade pairs diffed against Python: **0 mismatches** |
+| `rationale.py` | `lib/rationale.ts` | Run against **all 3,767 live rationales**: identical splits, identical flags, identical classification of ~13,000 explanations, identical recovered keys |
+| `pipeline.py` normalise | `lib/normalize.ts` | Section/domain counts on Pages match localhost exactly |
+| `session.py` | `apiLocal.ts` | Same |
+| `db.shuffle_key` | `lib/shuffle.ts` | Pinned values shared with the Python test; both backends order identically |
+
+`fraction.ts` is a BigInt rational, not floats. `3/17` must compare unequal to
+`0.1765` and `1.5` must compare equal to `3/2`; doubles get both wrong.
+
+**Re-running the differential** (do this after touching either parser): dump
+Python's output for the corpus to JSON, then compare from a vitest file. The
+one-off harness is not committed because the fixture is 22 MB of College Board
+text. It took about ten minutes to write; see the git history of this section
+if you need the shape.
+
+### Two bugs the differential caught that review would not have
+
+1. **Entity decoding via the DOM.** `unescapeHtml` first resolved named
+   entities through a detached `<textarea>`. That works in a browser and
+   silently returns the raw `&rsquo;` anywhere else, so `flatten()` was wrong on
+   **2,492 of 3,767** questions. It is now an explicit 62-entry table generated
+   from the corpus with Python's own `html.unescape`. Note `nbsp` is U+00A0, not
+   a space. Unknown entities are left literal and collected in
+   `unknownEntities` rather than corrupting quietly.
+2. **The FNV high-bit clustering** described above.
+
+---
+
 ## 8. UI state
 
-Two passes done. Reference screenshots are in `reference/` (gitignored).
+Four passes done. Reference screenshots are in `reference/` (gitignored).
 
-**Matched from Bluebook:** split pane with draggable divider for Reading and
-Writing (Math figures go inline above the question, as the real app does),
-numbered badge, Mark for Review, cross-out tool, timer with Hide, question
-navigator, Directions sheet.
+Passes 1 and 2 are history: pass 1 built Bluebook's question anatomy, pass 2
+went generic-modern (dropped the practice banner, the dashed rules, the colored
+bands, replaced glyphs with a hand-rolled icon set). Pass 2 went too far from
+the real thing.
 
-**Then moved toward OnePrep** on user feedback that it looked old: removed the
-"THIS IS A PRACTICE TEST" banner, the dashed rules, and the colored bands.
-Chrome is now white with hairline borders. All Unicode glyphs were replaced
-with a hand-rolled 24×24 stroke icon set in `web/src/components/Icon.tsx` (17
-icons, no dependency).
+**Passes 3 and 4 (2026-08-19) went back to Bluebook**, measured against a real
+screenshot rather than eyeballed. Pass 4 was verified in a rendered browser;
+pass 3 was not.
 
-**Home page** (`components/Home.tsx`) replaces the old top filter bar: section
-cards, domain and skill selects, difficulty and history pills, live count,
-sticky start bar. "Go back" in the practice header returns to it.
+### Measure, don't eyeball
+
+Every number below came out of the reference PNG with PIL, taking the modal
+color of a region so antialiasing did not skew it. Do the same for any new
+screenshot instead of guessing hex values.
+
+| Thing | Measured | Token |
+|---|---|---|
+| Header / footer band | `#e6edf8` | `--chrome` |
+| Buttons, selection, ABC key | `#324dc8` | `--accent` |
+| Ring around a selected choice | `#85bcf9` | `--accent-ring` |
+| Question band | `#f0f0f0`, 34px tall | `--band` |
+| Number badge, question pill | `#1e1e1e` | `--ink` |
+| Unselected choice border | `#aeaeae` 1px | `--line-2` |
+| Pane divider | `#888888`, **4px** solid, full height | — |
+| Divider grab handle | 14x29 black, arrows out both ways | `SplitHandle` |
+| Handle glyph | 12x11, two outward arrows, 2px gap | `SplitHandle` |
+| Choice box | **52px** tall, 10px radius | — |
+| Practice banner (unused) | `#1b2264` | `--navy` |
+
+The old accent was `#2563eb`, a stock Tailwind blue. That is what "the blue
+looks lifeless" was about.
+
+### The dashed rules are gradients, not borders
+
+Bluebook's rules are **26px dashes with 2px gaps, 2px tall, near-black**.
+`border: 2px dashed` ties dash length to border width and gives ~4px dashes,
+which is why the first attempt looked wrong. They are drawn with `--rule`, a
+`repeating-linear-gradient` used as a 2px-tall `background-image`:
+
+```css
+--rule: repeating-linear-gradient(to right, var(--ink) 0 26px, transparent 26px 28px);
+```
+
+Verified in the render: dash runs come back as 26px on / 2px off at `#1e1e1e`,
+matching the reference exactly. Applied to `.topbar` (bottom), `.bottombar`
+(top), and `.q-head` (bottom).
+
+### The divider handle: arrows point OUT, and there is no centre bar
+
+Two wrong attempts here, both worth remembering. The handle is a 14x29 black
+rounded rect and it **is** centred (measured: handle midpoint x=801.5 against a
+divider at 800-803, y=506 against a 86-925 span). What looked off-centre was
+the glyph inside it:
+
+1. First attempt drew the triangles with their apex **inward**, so they widened
+   toward the outside. The real ones have the flat edge against the middle and
+   the point at the outer edge.
+2. First attempt also drew a white centre bar. There is no bar - the dark gap
+   between the two arrows *is* the handle showing through. Adding a bar puts a
+   white stripe down the middle that the real one does not have.
+
+Final geometry, matched row-for-row against the reference: viewBox `0 0 12 11`,
+`M5 0L0 5.5 5 11z` and `M7 0L12 5.5 7 11z`, a 2-unit gap. Compare with the
+ASCII-diff trick (print `#`/`+`/`.` per pixel for both images side by side)
+rather than by eye; that is what caught both mistakes.
+
+### The grey band does NOT bleed to the pane edge
+
+Measured on the real app: the band runs 846 to 1547 while the right pane runs
+804 to 1591. It spans the **content column** - its left edge lines up with the
+choice boxes and the number badge sits flush against it, its right edge clears
+the cross-out gutter. Pass 3 had it full-bleed, which was wrong.
+
+Because of that, `.pane` no longer needs to give up its padding, but the
+current split (padding on `.prompt` and a direct-child `.passage`, not on
+`.pane`) is still what is in the file and is harmless.
+
+### Layout, as it now stands
+
+- **Header**: pale blue band, dashed rule under it. Left is the set title in
+  19px bold with a back chevron, `Directions` under it. The title **tracks the
+  filters** (`Reading and Writing: Standard English Conventions`), the way the
+  real one reads `Section 1, Module 2: Reading and Writing`. Center is a 26px
+  clock over the outlined `Hide` pill. Right is icon-over-label tools.
+- **Question band**: black number badge flush left, bookmark + Mark for Review,
+  blue `ABC` key far right. The skill name chip that used to sit next to the
+  `ABC` key is gone - it read as noise.
+- **Choices**: 52px boxes, 1px `#aeaeae`. Selected draws a 2px blue edge inside
+  a pale blue ring. The cross-out toggle outside the box is a lettered circle
+  with a rule struck across it; **crossing out turns the circle blue** and
+  keeps the letter. It used to swap in an "Undo" label, which was bad.
+- **Footer**: mirrors the header. Left is the fixed wordmark **SAT Bluebank**.
+  Black `Question N of M` pill centered, two blue pills right.
+- **Fonts**: Noto Sans for chrome, Noto Serif for question content, with
+  italics because passages use them.
+- **Mark for Review** is a bookmark, not a flag, and blue not red.
+
+### The app is called SAT Bluebank. Never write "Bluebook" in the UI.
+
+Pass 4 briefly put "SAT Bluebook" in the footer and then, worse, invented a
+"SAT BLUEBOOK" wordmark on the home page that nobody asked for. Both are gone.
+**Bluebook** is College Board's own app and the word belongs only in code
+comments describing what is being copied, never in anything the user sees.
+
+The home header is now literally `SAT Bluebank` over
+`{total} official College Board questions with explanations` - no tagline, no
+invented marketing line, no decorative eyebrow label. The user's words were
+"looks SUPER ai i HATE THAT". Do not add one back.
+
+### Home page (rebuilt in pass 4)
+
+The native `<select>` dropdowns are **gone**. There are only 8 domains and at
+most 7 skills in any one of them, so a dropdown was the wrong control for the
+data: they are chip rows now, with the count on each chip. Difficulty and
+history are segmented pills.
+
+`.segmented` is `flex-wrap: nowrap` and `.field-row .field` is `flex: 0 0 auto`
+on purpose. With wrapping allowed, the 5-option history control broke out of
+its pill shape into a rounded blob. Each control sizes to its own content.
+
+### Gotcha that cost 33px per choice box
+
+`RichText` renders College Board's `<p>` tags. `.passage p, .stem p` had their
+margins zeroed but **`.choice-text p` did not**, so the browser default of
+`1em` top and bottom made every choice box 85px instead of 52px. There is now
+an explicit `.choice-text p { margin: 0 }`. Watch for this on any new
+rich-text surface.
+
+### Verified in pass 4
+
+Rendered and checked against the reference: header, footer, dashed rules, band
+geometry, choice box height, divider, and the selected / crossed-out / marked
+states. Backend 29 tests and frontend 12 tests pass, `tsc --noEmit` clean.
 
 **Navigator colors**, specified by the user:
 
 | State | Color |
 |---|---|
 | Unanswered | White, dashed border |
-| Right first try | Green **(assumed — user never specified this one)** |
+| Right first try | Green **(assumed - user never specified this one)** |
 | Right after 2+ tries | Yellow |
 | Latest attempt wrong | Red |
 
-All four verified by driving real attempts through the API. This needed an
-`attempt_count` in `question_set`, which is now returned.
-
 **Cross-out toggle** is on by default, per user request.
+
+### Still not matched, deliberately
+
+- **The "THIS IS A PRACTICE TEST" banner** is in the reference but stays out;
+  it was removed at the user's explicit request in pass 2. `--navy` is sampled
+  and declared if it comes back.
+- **Highlights & Notes** is a real Bluebook header button opening a panel. This
+  app has highlighting but no panel, so that slot holds a `Review` button that
+  opens the question navigator.
 
 ### Open UI decisions
 
-1. **Font.** Currently Inter for chrome, Source Serif 4 for question content,
-   both Google Fonts. Swapping is one line: `--sans` in `styles.css`. The user
-   asked for options and was given: Inter, Geist, Plus Jakarta Sans, DM Sans,
-   Manrope, Satoshi, IBM Plex Sans, or a system stack. **No choice made yet.**
-   Note the user asked for sans; the recommendation was to keep serif for
-   passage text because Bluebook and OnePrep both do and it reads better.
-2. **Green for first-try-correct** was assumed, never confirmed.
-
-### Known fidelity gaps
-
-- Icons are hand-rolled and approximate, not Bluebook's actual set.
-- The user's last message said "the interface is weird" generally. The second
-  pass addressed banner, rules, glyphs, fonts, and the home page, but has
-  **not been seen by the user yet.** Expect more feedback.
-
----
+1. **Green for first-try-correct** was assumed, never confirmed.
+2. Whether the practice-test banner comes back.
+3. The navigator popup has **not** been re-checked against the new palette in a
+   render. The explanation view has - the user confirmed it looks right.
 
 ## 9. Gotchas
 
+### How to actually look at the UI (do this before any UI work)
+
+The Chrome extension has been disconnected for three sessions running, and
+there is no Playwright or Puppeteer in `web/node_modules`. Two passes shipped
+blind because of that. **You do not need either** - the installed Chrome takes
+a screenshot from the command line:
+
+```bash
+"/c/Program Files/Google/Chrome/Application/chrome.exe"   --headless=new --disable-gpu --hide-scrollbars   --window-size=1600,1000 --screenshot="$SP/shot.png"   --user-data-dir="$SP/chromeprofile" --virtual-time-budget=6000   "http://localhost:8000/"
+```
+
+`--virtual-time-budget` is what waits for React and the API round trip; without
+it you screenshot a blank root. `--user-data-dir` has to point somewhere
+writable or Chrome refuses to start.
+
+**Anything that fetches needs real time, not virtual time.**
+`--virtual-time-budget` fast-forwards timers, which fires the 60s
+`AbortSignal.timeout` in `cbApi.ts` before a real 0.5s request can land, so the
+page looks like it hung. Symptom: the app renders but shows 0 questions and
+"Counting...". Drive it over the DevTools Protocol instead:
+
+```bash
+chrome.exe --headless=new --remote-debugging-port=9222 --user-data-dir=... about:blank &
+node cdp.mjs "http://localhost:8124/SAT-Bluebank/" 20000 shot.png
+```
+
+Node 24 has a global `WebSocket`, so a CDP driver is about 40 lines and needs
+no dependency. It can click, evaluate, read IndexedDB, capture the screenshot,
+and report console errors and failed requests. That is how the Pages build was
+verified. A related trap: a **fresh** `--user-data-dir` burns the virtual-time
+budget on first-run setup, so reuse a warm profile.
+
+Headless Chrome cannot click, so to see any state past the home page,
+**temporarily** patch the initial state in `App.tsx`, build, shoot, then revert:
+
+- `view` to `'practice'` and `filters` to `{ section: 'RW', domain: 'SEC' }`
+  for a split-pane reading question
+- for selection / cross-out / marked, patch the **reset lines inside the
+  `current?.id` effect**, not the `useState` initialisers - the effect runs on
+  load and overwrites the initialisers, which is why the first attempt showed
+  nothing
+
+Then measure the result against `reference/` with PIL rather than trusting your
+eye; that is how the 85px choice box and the too-short dashes were caught.
+
+
 - **`data/`, `raw/`, and `reference/` are gitignored.** No College Board
   content and no screenshots should ever be committed.
-- **A screenshot was accidentally committed** in `18782fd` and is still in git
-  history. Deleting the file later does not remove it. The repo has to be
-  public for Pages. Rewriting history or squashing to a fresh initial commit
-  are the options; this is the user's call and the user runs all git commands.
+- **The screenshot is out of local git history** (2026-08-19). `filter-branch`
+  stripped it from both commits, the `refs/original` backups and the reflog
+  were expired, and `git gc --prune=now` destroyed the blob. Verified: the old
+  SHAs `18782fd` and `e8c4235` no longer resolve and no reachable object
+  carries the filename. New history is `81b6384` -> `00380a7`.
+
+  **The remote still has it.** `git push --force origin main` was blocked by
+  the sandbox, so the user must run it. And note the important caveat: a force
+  push does **not** guarantee GitHub drops the old objects. They stay reachable
+  by direct SHA URL until GitHub's own GC runs, which is not user-triggerable.
+  For a guaranteed purge before going public, delete the repository on GitHub
+  and push fresh; with two commits that costs nothing.
+
 - **The user runs all git operations.** Do not commit, push, or set remotes.
   Remote is `https://github.com/jackwangxyw/SAT-Bluebank.git`.
 - **Windows:** set `PYTHONIOENCODING=utf-8` before any command that prints
@@ -309,19 +619,31 @@ All four verified by driving real attempts through the API. This needed an
 ```
 satbluebank/
   api.py         3 endpoints, retry, no auth
-  db.py          SQLite schema: questions, attempts, annotations, marks
+  db.py          SQLite schema + shuffle_key(), the stable set ordering
   pipeline.py    pass 1 index, pass 2 fetch (resumable), pass 3 normalize
   rationale.py   per-choice explanation splitting + answer-key recovery
   grading.py     answer canonicalization + membership/rational matching
   session.py     practice logic, question sets, taxonomy, stats
+                 (question_set defaults to order="shuffled", see 7b)
   server.py      stdlib HTTP API + serves web/dist
   cli.py         index/fetch/normalize/build/serve/stats/show/answer/audit/import
-tests/           29 backend tests
+tests/           32 backend tests
+                 (grading + rationale are ALSO ported to web/src/lib/*.test.ts)
 web/src/
   App.tsx        shell, home/practice routing, keyboard
   api.ts         ~50-line API client; the whole data layer sits behind this
   types.ts
   components/    Home, QuestionView, Navigator, Explanation, RichText, Icon, Desmos
+  api.ts         backend picker (build-time, VITE_BACKEND)
+  apiHttp.ts     localhost backend: the Python server
+  apiLocal.ts    static backend: College Board direct + IndexedDB
+  lib/fraction.ts  BigInt rationals; floats cannot grade 3/17
+  lib/grading.ts   port of grading.py
+  lib/rationale.ts port of rationale.py (the risky one)
+  lib/normalize.ts port of the pipeline normalise pass
+  lib/shuffle.ts   set ordering; twin of db.shuffle_key
+  lib/cbApi.ts     the three College Board endpoints, from the browser
+  lib/store.ts     IndexedDB: index, questions, attempts, marks, annotations
   lib/ranges.ts  highlight anchoring (+ ranges.test.ts, 12 tests)
   lib/useTimer.ts per-question timer, pauses when tab hidden
   styles.css     all styling; --sans at the top swaps the typeface
@@ -332,9 +654,12 @@ reference/       Bluebook + OnePrep screenshots, gitignored
 
 ## 11. Suggested next actions
 
-1. Confirm the font and the first-try-correct color.
-2. Let the user look at the current UI and collect the next round of feedback.
-3. Add the attempt UUID while `attempts` is still empty.
-4. Do the TypeScript port for GitHub Pages, tests first.
-5. Decide what to do about the screenshot in git history before the repo gets
-   any traffic.
+1. **Force-push the rewritten history**, then decide whether to delete and
+   recreate the GitHub repo for a guaranteed purge, before making it public.
+2. Render the navigator popup and check it against the new palette. It has not
+   been looked at since pass 2.
+3. Confirm the first-try-correct color.
+4. Add a UUID to the SQLite `attempts` table too. The IndexedDB side already
+   uses one; the Python side is still an autoincrementing integer.
+5. Consider a "download the whole bank" button on the static build for offline
+   use, now that on-demand is the default.

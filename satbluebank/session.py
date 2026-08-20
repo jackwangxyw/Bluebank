@@ -118,7 +118,7 @@ _LAST_ATTEMPT = """
 
 
 def question_set(conn, section=None, domain=None, skill=None, difficulty=None,
-                 status=None, order="natural"):
+                 status=None, order="shuffled"):
     """The ordered working set the navigator paginates over.
 
     Returns one lightweight row per question: enough to draw the navigator grid
@@ -126,10 +126,14 @@ def question_set(conn, section=None, domain=None, skill=None, difficulty=None,
     """
     where, params = _filter_sql(section, domain, skill, difficulty, status)
     ordering = {
+        # Default. Mixes the sections and difficulties together, but the same
+        # pool always comes back in the same order, so question numbers mean
+        # something across sessions. See db.shuffle_key.
+        "shuffled": "shuffle_key(q.id)",
         "natural": "q.section, q.domain, q.skill, q.difficulty, q.id",
         "difficulty": "q.band, q.section, q.domain, q.id",
         "id": "q.id",
-    }.get(order, "q.section, q.domain, q.skill, q.difficulty, q.id")
+    }.get(order, "shuffle_key(q.id)")
 
     rows = conn.execute(f"""
         SELECT q.id, q.section, q.domain, q.domain_name, q.skill, q.skill_name,

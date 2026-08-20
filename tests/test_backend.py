@@ -3,7 +3,7 @@ made-up example; the comment names the question it came from.
 """
 import unittest
 
-from satbluebank import grading, rationale
+from satbluebank import db, grading, rationale
 
 
 class TestCanonical(unittest.TestCase):
@@ -218,6 +218,38 @@ class TestKeyRecovery(unittest.TestCase):
             "<p>Choice C is correct. Choice A is the best answer.</p>")
         self.assertIsNone(letter)
         self.assertEqual(flags, ["mcq_ambiguous_AC"])
+
+
+class TestShuffleKey(unittest.TestCase):
+    """The practice set is ordered by db.shuffle_key. Three properties matter:
+    it must not change between runs, it must actually interleave, and it must
+    agree exactly with web/src/lib/shuffle.ts, which sorts the static build.
+    """
+
+    def test_stable_across_processes(self):
+        # Pinned literals, shared with web/src/lib/shuffle.test.ts. If these
+        # change, every saved question number silently points at a different
+        # question, so this must fail loudly rather than be updated to match.
+        self.assertEqual(
+            db.shuffle_key("002fb221-07c6-4406-a00c-ed57339ea78c"), 6465008710589730716)
+        self.assertEqual(db.shuffle_key("015193-DC"), 4362093292545599972)
+        self.assertEqual(db.shuffle_key(""), 8442584544778250395)
+        self.assertEqual(db.shuffle_key("a"), 198367012849983736)
+
+    def test_key_fits_a_signed_sqlite_integer(self):
+        for qid in ("015193-DC", "a" * 200, "", "−4"):
+            self.assertGreaterEqual(db.shuffle_key(qid), 0)
+            self.assertLess(db.shuffle_key(qid), 2 ** 63)
+
+    def test_interleaves_the_sections(self):
+        # Without shuffling, MATH sorts before RW and you get ~1,900 math
+        # questions before the first reading one.
+        ids = [(f"m{i}", "MATH") for i in range(500)]
+        ids += [(f"r{i}", "RW") for i in range(500)]
+        ids.sort(key=lambda pair: db.shuffle_key(pair[0]))
+        first_20 = [section for _, section in ids[:20]]
+        self.assertIn("MATH", first_20)
+        self.assertIn("RW", first_20)
 
 
 if __name__ == "__main__":

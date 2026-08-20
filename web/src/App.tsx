@@ -46,6 +46,7 @@ export default function App() {
   const [showDirections, setShowDirections] = useState(false)
   const [showTimer, setShowTimer] = useState(true)
   const [showDesmos, setShowDesmos] = useState(false)
+  const [desmosSplit, setDesmosSplit] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -153,11 +154,13 @@ export default function App() {
   }, [index, go, practising])
 
   const section = question?.section ?? filters.section ?? 'RW'
+  // Reads like Bluebook's "Section 1, Module 2: Reading and Writing": the
+  // section, then whatever the filters narrowed it to.
   const setTitle = useMemo(() => {
-    if (filters.skill && question?.skill_name) return question.skill_name
-    if (filters.domain && question?.domain_name) return question.domain_name
-    if (filters.section) return SECTION_LABEL[filters.section]
-    return 'All questions'
+    const lead = filters.section ? SECTION_LABEL[filters.section] : 'All questions'
+    if (filters.skill && question?.skill_name) return `${lead}: ${question.skill_name}`
+    if (filters.domain && question?.domain_name) return `${lead}: ${question.domain_name}`
+    return lead
   }, [filters, question?.domain_name, question?.skill_name])
 
   if (!practising) {
@@ -177,13 +180,16 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="topbar-left">
-          <button className="ghostlink" onClick={() => setView('home')}>
-            <Icon name="chevron-left" size={16} />
-            Go back
-          </button>
+          <div className="section-title">
+            <button className="backbtn" onClick={() => setView('home')} title="Go back">
+              <Icon name="chevron-left" size={18} strokeWidth={2.2} />
+            </button>
+            {setTitle}
+          </div>
           <button className="ghostlink" onClick={() => setShowDirections((v) => !v)}>
             Directions
-            <Icon name={showDirections ? 'chevron-up' : 'chevron-down'} size={15} />
+            <Icon name={showDirections ? 'chevron-up' : 'chevron-down'} size={15}
+                  strokeWidth={2.2} />
           </button>
         </div>
 
@@ -200,12 +206,20 @@ export default function App() {
           {section === 'MATH' ? (
             <button className={showDesmos ? 'tool on' : 'tool'}
                     onClick={() => setShowDesmos((v) => !v)}>
-              <Icon name="calculator" size={19} />
+              <span className="tool-glyphs"><Icon name="calculator" size={21} /></span>
               <span>Calculator</span>
             </button>
           ) : null}
+          <button className={showNavigator ? 'tool on' : 'tool'}
+                  onClick={() => setShowNavigator(true)} disabled={!items.length}>
+            <span className="tool-glyphs">
+              <Icon name="highlighter" size={21} />
+              <Icon name="note" size={20} />
+            </span>
+            <span>Review</span>
+          </button>
           <div className="tool static">
-            <Icon name="check" size={19} />
+            <span className="tool-glyphs"><Icon name="check" size={21} /></span>
             <span>
               {stats && stats.attempts
                 ? `${stats.correct}/${stats.attempts}`
@@ -219,7 +233,7 @@ export default function App() {
         <div className="error" onClick={() => setError(null)}>{error} (dismiss)</div>
       ) : null}
 
-      <main className="main">
+      <main className={desmosSplit ? 'main is-split-tool' : 'main'}>
         {loading ? <div className="placeholder">Loading question…</div> : null}
         {!loading && !current ? (
           <div className="placeholder">No questions match these filters.</div>
@@ -245,20 +259,23 @@ export default function App() {
               persistAnnotations(annotations.filter((a) => a.id !== id))}
           />
         ) : null}
-        {showDesmos ? <Desmos onClose={() => setShowDesmos(false)} /> : null}
+        {showDesmos ? (
+          <Desmos onClose={() => setShowDesmos(false)}
+                  onExpandedChange={setDesmosSplit} />
+        ) : null}
       </main>
 
       <footer className="bottombar">
-        <div className="bottom-left">
+        <div className="bottom-left">SAT Bluebank</div>
+        <div className="bottom-mid">
           <button className="navbtn" onClick={() => setShowNavigator(true)}
                   disabled={!items.length}>
-            {items.length ? index + 1 : 0} of {items.length.toLocaleString()}
-            <Icon name="chevron-up" size={15} />
+            Question {items.length ? index + 1 : 0} of {items.length.toLocaleString()}
+            <Icon name="chevron-up" size={15} strokeWidth={2.2} />
           </button>
         </div>
-        <div className="bottom-mid">{setTitle}</div>
         <div className="bottom-right">
-          <button className="btn quiet" onClick={() => go(index - 1)} disabled={index <= 0}>
+          <button className="btn primary" onClick={() => go(index - 1)} disabled={index <= 0}>
             Back
           </button>
           <button className="btn primary" onClick={() => go(index + 1)}

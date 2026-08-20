@@ -118,18 +118,28 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
     <div className="home">
       <div className="home-inner">
         <header className="hero">
-          <h1 className="hero-title">SAT Bluebank</h1>
+          <h1 className="hero-title">Build a practice set</h1>
           <p className="hero-sub">
             {totals.all.toLocaleString()} official College Board questions with explanations
-            {stats && stats.attempts > 0 ? (
-              <>
-                <span className="hero-dot">·</span>
-                {totals.seen.toLocaleString()} seen
-                <span className="hero-dot">·</span>
-                {stats.accuracy !== null ? `${Math.round(stats.accuracy * 100)}% correct` : '—'}
-              </>
-            ) : null}
           </p>
+
+          {stats && stats.attempts > 0 ? (
+            <div className="progress">
+              <div className="progress-head">
+                <span className="label">Bank covered</span>
+                <span className="progress-n">
+                  {totals.seen.toLocaleString()}
+                  <span className="dim"> / {totals.all.toLocaleString()}</span>
+                  <span className="progress-sep">·</span>
+                  {stats.accuracy !== null ? `${Math.round(stats.accuracy * 100)}%` : '—'} correct
+                </span>
+              </div>
+              <span className="meter">
+                <span className="meter-fill"
+                      style={{ width: `${Math.max(totals.all ? (totals.seen / totals.all) * 100 : 0, 0.4)}%` }} />
+              </span>
+            </div>
+          ) : null}
         </header>
 
         <section className="pick">

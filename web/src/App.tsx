@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from './api'
 import { Home } from './components/Home'
+import { Stats as StatsPage } from './components/Stats'
 import { Navigator } from './components/Navigator'
 import { Notes } from './components/Notes'
 import { QuestionView } from './components/QuestionView'
@@ -25,7 +26,7 @@ const DIRECTIONS = {
 } as const
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'practice'>('home')
+  const [view, setView] = useState<'home' | 'stats' | 'practice'>('home')
 
   const [taxonomy, setTaxonomy] = useState<TaxonomyRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -168,14 +169,35 @@ export default function App() {
 
   if (!practising) {
     return (
-      <>
+      <div className="shell">
         {error ? (
           <div className="error" onClick={() => setError(null)}>{error} (dismiss)</div>
         ) : null}
-        <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
-              loading={listLoading} onChange={setFilters}
-              onStart={() => { setIndex(0); setView('practice') }} />
-      </>
+        <nav className="tabs">
+          <div className="tabs-inner">
+            <span className="wordmark">SAT Bluebank</span>
+            <button className={view === 'home' ? 'tab on' : 'tab'}
+                    onClick={() => setView('home')}>Practice</button>
+            <button className={view === 'stats' ? 'tab on' : 'tab'}
+                    onClick={() => setView('stats')}>Stats</button>
+          </div>
+        </nav>
+
+        {view === 'home' ? (
+          <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
+                loading={listLoading} onChange={setFilters}
+                onStart={() => { setIndex(0); setView('practice') }} />
+        ) : (
+          <div className="page">
+            <StatsPage taxonomy={taxonomy}
+                       onPractice={(next) => {
+                         setFilters(next)
+                         setIndex(0)
+                         setView('practice')
+                       }} />
+          </div>
+        )}
+      </div>
     )
   }
 

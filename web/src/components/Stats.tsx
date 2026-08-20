@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { Icon } from './Icon'
 import type { Filters, Section, TaxonomyRow } from '../types'
 
@@ -25,28 +25,6 @@ const DIFFICULTIES = [
   { key: 'H', label: 'Hard' },
 ] as const
 
-/**
- * Sequential ramp, one hue, light to dark, derived from College Board's
- * #324DC7 rather than the reference palette's stock blue.
- *
- * Validated with the data-viz validator: lightness is monotone, every adjacent
- * step clears the 0.06 lightness gap, hue spread is 4 degrees. The palest steps
- * sit below 3:1 against white on purpose -- this is a *sequential* scale where
- * "near zero" is meant to recede toward the surface -- so every cell carries a
- * visible count label, which is the relief the low-contrast steps require.
- */
-const RAMP = ['#e8ecfb', '#ccd5f5', '#a9b8ee', '#8098e4', '#4f68d5', '#324dc7', '#23379a']
-
-/**
- * The step at which a cell label must flip to white.
- *
- * Computed, not guessed: measured against #1e1e1e and #ffffff, every step below
- * this clears 4.5:1 with dark text and every step from here clears it with
- * white. The original step 4 (#5872da) managed neither -- 3.84 dark, 4.34 white
- * -- so no label on it could have been legible. It was re-stepped to #4f68d5,
- * and the ramp re-validated: still monotone, still a single hue, gaps intact.
- */
-const RAMP_INVERT_FROM = 4
 
 interface Tally { n: number; seen: number; correct: number }
 const empty = (): Tally => ({ n: 0, seen: 0, correct: 0 })
@@ -90,8 +68,6 @@ export function Stats({ taxonomy, onPractice }: Props) {
       name: string; code: string; domain: string; domainName: string; section: Section
     }>()
     const difficulty = new Map<string, Tally>()
-    // domain code -> difficulty -> tally, for the composition heatmap
-    const grid = new Map<string, Map<string, Tally>>()
 
     for (const row of taxonomy) {
       add(overall, row)
@@ -114,9 +90,6 @@ export function Stats({ taxonomy, onPractice }: Props) {
       const f = difficulty.get(row.difficulty) ?? empty()
       add(f, row); difficulty.set(row.difficulty, f)
 
-      const g = grid.get(dKey) ?? new Map<string, Tally>()
-      const cell = g.get(row.difficulty) ?? empty()
-      add(cell, row); g.set(row.difficulty, cell); grid.set(dKey, g)
     }
 
     const order: Record<Section, number> = { RW: 0, MATH: 1 }
@@ -134,27 +107,22 @@ export function Stats({ taxonomy, onPractice }: Props) {
       .sort((a, b) => b.n - a.n)
       .slice(0, 5)
 
-    const gridMax = Math.max(
-      1, ...[...grid.values()].flatMap((g) => [...g.values()].map((c) => c.n)))
     const biggestDomain = Math.max(1, ...domainList.map((d) => d.n))
 
     return {
       overall, sections, domainList, skillList, difficulty, focus, untouched,
-      grid, gridMax, biggestDomain,
+      biggestDomain,
     }
   }, [taxonomy])
 
   const {
     overall, sections, domainList, skillList, difficulty,
-    focus, untouched, grid, gridMax, biggestDomain,
+    focus, untouched, biggestDomain,
   } = model
 
   const skillsFor = (section: Section, domain: string) =>
     skillList.filter((k) => k.section === section && k.domain === domain)
 
-  /** Snap a count onto the sequential ramp, returning the step index. */
-  const rampIndex = (n: number) =>
-    Math.min(RAMP.length - 1, Math.round((n / gridMax) * (RAMP.length - 1)))
 
   const accuracy = overall.seen ? pct(overall.correct, overall.seen) : null
   const coverage = pct(overall.seen, overall.n)
@@ -251,9 +219,13 @@ export function Stats({ taxonomy, onPractice }: Props) {
           <span className="block-meta">bar length is bank size · fill is what you have seen</span>
         </div>
         <ul className="dbars">
-          {domainList.map((d) => (
-            <li key={d.section + d.code} className="dbar">
-              <span className="dbar-name">{d.name}</span>
+          {domainList.map((d, i) => (
+            <Fragment key={d.section + d.code}>
+              {i === 0 || domainList[i - 1].section !== d.section ? (
+                <li className="dbar-group">{SECTION_NAME[d.section]}</li>
+              ) : null}
+            <li className="dbar">
+              <span className="dbar-name" title={d.name}>{d.name}</span>
               <span className="dbar-track" title={`${d.seen} of ${d.n} attempted`}>
                 <span className="dbar-total" style={{ width: `${(d.n / biggestDomain) * 100}%` }}>
                   <span className="dbar-seen"
@@ -263,50 +235,9 @@ export function Stats({ taxonomy, onPractice }: Props) {
               <span className="dbar-n">{d.n.toLocaleString()}</span>
               <Accuracy t={d} />
             </li>
+            </Fragment>
           ))}
         </ul>
-      </section>
-
-      {/* Continuous magnitude across two dimensions -> sequential heatmap. Every
-          cell is labelled, which is also the relief the pale steps require. */}
-      <section className="block">
-        <div className="block-head">
-          <h2 className="h">Bank composition</h2>
-          <span className="block-meta">questions per domain and difficulty</span>
-        </div>
-        <div className="heat">
-          <div className="heat-row heat-head">
-            <span className="heat-name" />
-            {DIFFICULTIES.map((f) => <span key={f.key} className="heat-col">{f.label}</span>)}
-            <span className="heat-col">Total</span>
-          </div>
-          {domainList.map((d) => {
-            const g = grid.get(d.section + '|' + d.code)
-            return (
-              <div key={d.section + d.code} className="heat-row">
-                <span className="heat-name" title={d.name}>{d.name}</span>
-                {DIFFICULTIES.map((f) => {
-                  const cell = g?.get(f.key) ?? empty()
-                  const step = rampIndex(cell.n)
-                  return (
-                    <span key={f.key}
-                          className={step >= RAMP_INVERT_FROM ? 'heat-cell on-dark' : 'heat-cell'}
-                          style={{ background: RAMP[step] }}
-                          title={`${d.name} · ${f.label}: ${cell.n} questions, ${cell.seen} attempted`}>
-                      {cell.n.toLocaleString()}
-                    </span>
-                  )
-                })}
-                <span className="heat-cell heat-total">{d.n.toLocaleString()}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="heat-legend">
-          <span className="heat-legend-l">Fewer</span>
-          {RAMP.map((c) => <span key={c} className="heat-swatch" style={{ background: c }} />)}
-          <span className="heat-legend-l">More</span>
-        </div>
       </section>
 
       <section className="block">

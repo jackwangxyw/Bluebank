@@ -65,112 +65,221 @@ body.dragging { cursor: col-resize; user-select: none; }
 button { font-family: inherit; }
 
 /* ============================ home ============================ */
+/*
+ * Applying the Apple design notes:
+ *  - typography: tracking is size-specific, tight and negative at display size,
+ *    near zero on body; leading tracks size inversely (SKILL 15).
+ *  - colour carries information rather than decorating: each section owns a hue
+ *    and every domain chip inherits it, so which half of the test you are
+ *    looking at is readable without reading (SKILL 16, grouping and mapping).
+ *  - response lives on pointer-down, not on release (SKILL 1).
+ *  - the start bar is a translucent material with content scrolling under it,
+ *    not an opaque strip with a hard rule (SKILL 12).
+ */
 .home {
-  min-height: 100%; overflow-y: auto;
-  background:
-    radial-gradient(1100px 460px at 50% -180px, #dfe8fa 0%, rgba(223, 232, 250, 0) 70%),
-    var(--bg-soft);
-}
-.home-inner { max-width: 900px; margin: 0 auto; padding: 60px 28px 120px; }
+  --rw: #0f766e;
+  --rw-soft: #e6f7f4;
+  --rw-line: #9fd8cf;
+  --math: #324dc8;
+  --math-soft: #e8edfb;
+  --math-line: #b6c3f0;
+  --all: #2c3140;
+  --all-soft: #eef0f4;
+  --all-line: #c9cede;
 
-.home-head h1 {
-  margin: 16px 0 0;
-  font-size: 42px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1;
-}
-.home-sub { margin: 12px 0 0; max-width: 62ch; color: var(--muted); font-size: 16px; line-height: 1.6; }
+  --easy: #15803d;
+  --medium: #b45309;
+  --hard: #be123c;
 
-.statrow { display: flex; gap: 12px; margin-top: 32px; }
-.stat {
-  flex: 1; background: var(--bg); border: 1px solid var(--line);
-  border-radius: var(--r-lg); padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 2px;
+  position: relative;
+  height: 100%; overflow-y: auto;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #f3f6fc 0%, #fbfbfd 300px, #fbfbfd 100%);
 }
-.stat-n { font-size: 27px; font-weight: 700; letter-spacing: -.025em; }
-.stat-l { font-size: 13px; color: var(--muted); }
+/* flex:1 0 auto is what pushes the start bar to the bottom on a short page
+   while still letting a long page scroll normally underneath it. */
+.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 40px 28px 24px; }
 
-.field { margin-top: 38px; flex: 1; min-width: 0; }
-.field-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+/* ---- header ----
+ * An app header, not a marketing hero. A 3.5rem headline over a muted one-liner
+ * is the shape of a generated landing page, and the page is not a landing page:
+ * the job is pick a set, start. So the identity and the live progress share one
+ * row and the picker begins immediately (SKILL 16, simplicity is not minimalism
+ * -- strip what does not serve the purpose, and let hierarchy do the talking).
+ */
+.hero {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 28px; flex-wrap: wrap;
+  padding-bottom: 20px; border-bottom: 1px solid var(--line);
+}
+.hero-id { min-width: 0; }
+.hero-title {
+  margin: 0;
+  font-size: 27px; font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.024em;       /* negative tracking, scaled to this size */
+  color: var(--ink);
+}
+.hero-sub {
+  margin: 5px 0 0;
+  font-size: 14.5px; line-height: 1.45; letter-spacing: 0;
+  color: var(--muted);
+}
+
+.hero-stats { display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; }
+.hero-progress { min-width: 190px; }
+.hero-progress-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  margin-bottom: 7px;
+}
+.hero-progress-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.hero-progress-value { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hero-progress-value .dim { color: var(--muted); font-weight: 500; }
+.meter { height: 6px; border-radius: 999px; background: var(--all-soft); overflow: hidden; }
+.meter-fill {
+  display: block; height: 100%; border-radius: 999px; min-width: 3px;
+  background: linear-gradient(90deg, var(--rw), var(--math));
+  transition: width .5s cubic-bezier(.22, 1, .36, 1);
+}
+.hero-figure { display: flex; flex-direction: column; gap: 0; }
+.hero-figure-n {
+  font-size: 21px; font-weight: 700; letter-spacing: -.025em;
+  font-variant-numeric: tabular-nums; line-height: 1.15;
+}
+.hero-figure-l {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* ---- fields ---- */
+.field { margin-top: 34px; flex: 1; min-width: 0; }
+.field-head { display: flex; align-items: center; gap: 12px; margin-bottom: 13px; }
 .field-head h2 {
-  margin: 0; font-size: 12px; font-weight: 700;
-  letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+  margin: 0; font-size: 11.5px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
 }
 .field-hint { margin: 0; font-size: 14.5px; color: var(--muted); }
-.field-row { display: flex; gap: 40px; align-items: flex-start; }
-.field-row .field { flex: 0 0 auto; }
+.field-row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+.field-row .field { flex: 1 1 300px; }
 
 .reset {
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
-  background: none; border: none; cursor: pointer; padding: 3px 8px;
+  background: none; border: none; cursor: pointer; padding: 4px 10px;
   border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted);
 }
-.reset:hover { background: var(--bg); color: var(--ink); }
+.reset:hover { background: var(--all-soft); color: var(--ink); }
+.reset:active { transform: scale(.96); }
 
 /* ---- section cards ---- */
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
 .card {
-  position: relative; text-align: left; background: var(--bg);
-  border: 1px solid var(--line); border-radius: var(--r-lg);
-  padding: 18px 18px 16px; cursor: pointer;
-  display: flex; flex-direction: column; gap: 5px;
-  transition: border-color .12s, box-shadow .12s, transform .12s;
+  --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
+  position: relative; overflow: hidden; text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 17px 18px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color .16s, box-shadow .16s, transform .16s, background .16s;
 }
-.card:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.card.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
+.card.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
+/* The colour bar along the top edge is the section identity. It is there
+   whether or not the card is selected, so the hue teaches before you click. */
+.card::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--tone);
+}
+.card:hover { border-color: var(--tone-line); transform: translateY(-2px); }
+.card:active { transform: translateY(0) scale(.99); }
 .card.on {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent), 0 6px 18px rgba(50, 77, 200, .13);
+  border-color: var(--tone); background: var(--tone-soft);
+  box-shadow: inset 0 0 0 1px var(--tone);
 }
-.card-t { font-size: 16.5px; font-weight: 700; letter-spacing: -.012em; }
-.card-b { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .card-n {
-  margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  font-size: 22px; font-weight: 700; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; color: var(--tone); line-height: 1.15;
 }
-.card.on .card-n { color: var(--accent); }
+.card-t { font-size: 16px; font-weight: 650; letter-spacing: -.012em; }
+.card-b { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.card.on .card-b { color: var(--ink-2); }
 
-/* ---- chips: taxonomy is small enough that a dropdown is the wrong control ---- */
+/* ---- chips ---- */
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
+  --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
+  position: relative; overflow: hidden;
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
   padding: 8px 15px; font: inherit; font-size: 14px; font-weight: 500;
   color: var(--ink-2); cursor: pointer;
-  transition: border-color .12s, background .12s, color .12s;
+  transition: border-color .14s, background .14s, color .14s, transform .14s;
 }
+.chip.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
+.chip.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
 .chip:has(.chip-n) { padding-right: 8px; }
-.chip:hover { border-color: var(--line-2); color: var(--ink); }
-.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip:hover { border-color: var(--tone-line); background: var(--tone-soft); color: var(--ink); }
+.chip:active { transform: scale(.97); }
+.chip.on { background: var(--tone); border-color: var(--tone); color: #fff; font-weight: 600; }
 .chip-n {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 26px; height: 20px; padding: 0 6px; border-radius: 999px;
-  background: var(--bg-soft); color: var(--muted);
+  min-width: 27px; height: 21px; padding: 0 7px; border-radius: 999px;
+  background: var(--tone-soft); color: var(--tone);
   font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.chip.on .chip-n { background: rgba(255, 255, 255, .22); color: #fff; }
+.chip.on .chip-n { background: rgba(255, 255, 255, .24); color: #fff; }
 
-/* ---- segmented control ---- */
-.segmented {
-  display: inline-flex; background: var(--bg); border: 1px solid var(--line);
-  border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: nowrap;
+/* How much of this domain you have attempted. A hairline rather than a labelled
+   progress bar: it is ambient, not something you are meant to read precisely. */
+.chip-meter {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: var(--tone); opacity: .5;
+  transform-origin: left center;
+  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
 }
-.seg {
-  background: none; border: none; border-radius: 999px; cursor: pointer;
-  padding: 7px 16px; font: inherit; font-size: 13.5px; font-weight: 600;
-  color: var(--muted); white-space: nowrap;
-  transition: background .12s, color .12s;
-}
-.seg:hover { color: var(--ink); }
-.seg.on { background: var(--accent); color: #fff; }
+.chip.on .chip-meter { background: #fff; opacity: .85; }
 
-/* ---- sticky start bar ---- */
-.home-foot {
-  position: sticky; bottom: 22px; margin-top: 44px;
+/* Difficulty reads as a scale, so it gets the conventional traffic colours. */
+.chip.diff-E { --tone: var(--easy); --tone-soft: #eaf6ee; --tone-line: #a8d6b8; }
+.chip.diff-M { --tone: var(--medium); --tone-soft: #fbf1e6; --tone-line: #e3bd8c; }
+.chip.diff-H { --tone: var(--hard); --tone-soft: #fdecf0; --tone-line: #efaebe; }
+.diff-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+.chip.on .diff-dot { background: #fff; }
+
+/* ---- sticky start bar: a material, not a strip ---- */
+.startbar {
+  position: sticky; bottom: 0; z-index: 10;
+  padding: 26px 28px 20px;
+  /* Content fades out under the bar instead of meeting a hard 1px rule. */
+  background: linear-gradient(180deg,
+    rgba(251, 251, 253, 0) 0%, rgba(251, 251, 253, .85) 45%, #fbfbfd 100%);
+  pointer-events: none;
+}
+.startbar-inner {
+  pointer-events: auto;
+  max-width: 940px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  background: var(--bg); border: 1px solid var(--line);
-  border-radius: 999px; padding: 12px 12px 12px 24px;
-  box-shadow: 0 12px 30px rgba(16, 20, 30, .12);
+  padding: 11px 12px 11px 24px; border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: 0 10px 30px rgba(16, 20, 30, .12), 0 0 0 1px rgba(16, 20, 30, .05);
 }
-.count { color: var(--muted); font-size: 14.5px; }
+.count { color: var(--ink-2); font-size: 14.5px; }
 .count strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .startbar-inner { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card, .chip, .reset { transition: background .12s, border-color .12s, color .12s; }
+  .card:hover, .card:active, .chip:active, .reset:active { transform: none; }
+  .meter-fill, .chip-meter { transition: none; }
+}
+@media (prefers-contrast: more) {
+  .card, .chip { border-color: var(--ink-2); }
+  .startbar-inner { background: #fff; border-color: var(--ink); }
+}
 
 /* ============================ shell ============================ */
 .app { height: 100%; display: flex; flex-direction: column; background: var(--bg); }

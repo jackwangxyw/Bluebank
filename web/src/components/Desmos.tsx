@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
 
-// Desmos publish their demo key in the API docs. Swap in your own from
-// desmos.com/api if you ever host this somewhere public.
-const API_KEY = 'dcb31709b452b1cf9dc26972add0fda6'
+// Our own key from desmos.com/api, replacing the demo key Desmos publishes in
+// their docs (which logs a "not for production" warning on every load).
+//
+// A Desmos API key is a public identifier, not a secret: it travels in the
+// script URL and is visible in the browser on any site that uses one. It being
+// in a public repo is expected, not a leak.
+const API_KEY = '8359beecc3e74feda51c82d4934c80a1'
 const SRC = `https://www.desmos.com/api/v1.11/calculator.js?apiKey=${API_KEY}`
 
 interface Calculator {

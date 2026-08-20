@@ -1,203 +1,146 @@
 # SAT Bluebank
 
-A local Bluebook-style SAT practice tool backed by the official College Board
-question bank, with auto-grading and College Board's own explanations, including
-the per-choice explanation of why the answer you picked is wrong.
+A practice app for the official College Board SAT question bank, laid out like Bluebook. It grades your answer against the real key and then shows College Board's own explanation, including the one for the choice you actually picked. There are 3,767 questions and 3,301 of the multiple choice ones have a per choice explanation.
 
-**This repo contains code only.** No College Board content is committed. On first
-run the exporter fetches the bank itself into a local, gitignored SQLite database,
-so there is nothing to redistribute and you always get current content.
+The repo is code only. No question content is committed, and none of it is in the built site either. The app fetches the bank from College Board at runtime and keeps it locally, so the first thing you do after cloning is download it.
 
-Python 3.9+, no dependencies.
+![Practice picker](Images/practice-picker.png)
+![Stats](Images/stats.png)
+
+## Read this first
+The College Board site terms say you may not "decompile, reverse engineer, scrape or data-mine College Board Services or Content", and that their content may not be "distributed, downloaded, uploaded, reproduced" without written permission. This project does the thing that clause describes. It's non-commercial and it's personal study, which is the best position you can be in here, but that's a mitigation and not permission. Run it locally for yourself and you're in the same place as anyone saving a practice question. Host it publicly and you're the one distributing, which is a different thing.
+
+I'm not a lawyer and this isn't legal advice.
 
 ## Quick start
+You need Python 3.9 or newer and Node. The build takes about five minutes, almost all of it downloading 3,767 question bodies at 12.8 requests a second.
 
 ```
-python -m satbluebank build      # index + fetch + normalize, about 5 minutes
-cd web && npm install && npm run build && cd ..
-python -m satbluebank serve      # http://localhost:8000
+python -m satbluebank build     # index, fetch, normalize
+cd web && npm install && npm run build
+cd .. && python -m satbluebank serve
 ```
 
-Working on the frontend, with hot reload:
+Then open http://localhost:8000. If you only want to poke at the data, `build` on its own is enough and you can skip the web part entirely.
+
+For frontend work, run `python -m satbluebank serve` in one terminal and `npm run dev` in another. Vite sits on 5173 and proxies `/api` to 8000, so you get hot reload against the real data.
+
+## Two backends
+The frontend talks to one module, [web/src/api.ts](web/src/api.ts), and nothing else in the app touches the network or storage. That module picks between two implementations at build time.
+
+| | localhost | static build |
+| :--- | :--- | :--- |
+| Data | Python server and SQLite | College Board direct, cached in IndexedDB |
+| Loading | whole bank up front, about 5 minutes | index in 1.7 seconds, bodies on demand |
+| Grading | server | browser |
+| Answer key | withheld until you answer | necessarily in the browser |
+| Progress | `data/bluebank.db` | IndexedDB |
 
 ```
-python -m satbluebank serve      # terminal 1, API on :8000
-cd web && npm run dev            # terminal 2, UI on :5173, proxies /api
+npm run build         # -> dist/        localhost
+npm run build:pages   # -> dist-pages/  static, no server
 ```
 
-The CLI still works on its own if you want it:
+`?backend=local` or `?backend=http` overrides it for one page load, which is handy for testing the static path against the dev server without a separate build.
 
-```
-python -m satbluebank stats
-python -m satbluebank show --section MATH --difficulty H
-python -m satbluebank answer <question-id> C
-```
+The two don't share progress. Answering on one doesn't show up on the other.
 
-`serve` binds to `127.0.0.1`. `--host 0.0.0.0` opens it to your network, which
-is the only change needed to put it behind a domain later.
-
-`build` is resumable. Rerunning it refetches only questions whose `updateDate`
-moved, so a routine refresh touches tens of items rather than thousands.
+The static build depends on College Board sending `Access-Control-Allow-Origin: *`, which they currently do on all three endpoints. That header is theirs to change and if they tighten it the static build stops working in a browser while the Python one keeps going, since a server ignores CORS. That's most of the reason both still exist.
 
 ## Commands
-
 | Command | What it does |
-|---|---|
-| `index` | Pass 1. Two list calls, writes `data/index.json` |
-| `fetch` | Pass 2. Question detail into `raw/{path}/{id}.json`, skipping current files |
-| `normalize` | Pass 3. Pure offline pass, both API shapes into one SQLite schema |
-| `build` | All three in order |
-| `stats` | Corpus counts by section/domain/type, plus your attempt history |
-| `show` | Print one question, filtered or by `--id` |
-| `answer <id> <response>` | Grade a response and print the official explanations |
-| `audit` | List every question the normalizer flagged. Should be 3 |
-| `import <file.json>` | Load questions from a JSON array against the normalized schema |
-| `serve` | Run the practice app and its JSON API |
+| :--- | :--- |
+| `index` | Pass 1, builds `data/index.json` from two API calls |
+| `fetch` | Pass 2, downloads question bodies into `raw/`, resumable |
+| `normalize` | Pass 3, parses everything into SQLite |
+| `build` | All three |
+| `serve` | API plus the built frontend on :8000 |
+| `stats` | Counts by section, domain and type |
+| `show <id>` | Prints one question |
+| `answer <id> <response>` | Grades from the command line |
+| `audit` | Lists flagged questions, should be exactly 3 |
+| `import <file.json>` | Loads questions from a file instead of the API |
 
-`normalize` and `audit` accept `--strict` to exit nonzero when anything is
-flagged, for use in a scheduled refresh.
+`fetch` skips anything already in `raw/` with a matching `updateDate`, so re-running it after an interruption picks up where it stopped.
 
-## Data source
+## Where your data lives
+Three tables in [data/bluebank.db](data) are yours: `attempts`, `annotations` and `marks`. Everything else re-downloads. That's about 2 KB of real data sitting inside a 47 MB file, so back up the tables rather than the database.
 
-Three unauthenticated endpoints. No cookie, key, or token.
+```
+python -c "
+import sqlite3, json, io
+c = sqlite3.connect('data/bluebank.db'); c.row_factory = sqlite3.Row
+out = {t: [dict(r) for r in c.execute('select * from %s' % t)] for t in ('attempts','annotations','marks')}
+io.open('progress-backup.json','w',encoding='utf-8').write(json.dumps(out, indent=1))"
+```
 
-| Endpoint | Purpose |
-|---|---|
-| `POST qbank-api.collegeboard.org/.../get-questions` | Index of stubs, no content |
-| `POST qbank-api.collegeboard.org/.../get-question` | Detail by `external_id` |
-| `GET saic.collegeboard.org/disclosed/{ibn}.json` | Detail by `ibn` (legacy) |
+To wipe your progress and keep the questions, delete from those same three tables. To wipe everything, `rm -rf data raw` and run `build` again.
 
-Every question is on exactly one path, and the unused field is an empty string
-rather than null, so `pipeline` tests truthiness. The `ibn` path is frozen: all
-459 of its items are from the original 2023-08-02 batch, and every update batch
-since has been `external_id` only. A few `external_id`s appear twice in the
-index under different `questionId`s, so pass 1 collapses them to the newest;
-3,770 index entries are 3,767 distinct questions.
+On the static build it's IndexedDB under database `satbluebank`, and `indexedDB.deleteDatabase('satbluebank')` in the console clears it. The app calls `navigator.storage.persist()` on startup so the browser won't evict the cache under storage pressure.
 
-On the `ibn` payload the stem is in `prompt` and the stimulus is in a separate
-`body` field, present on 218 items and easy to miss. Without it, a question like
-"Which of the following is equivalent to the expression above?" arrives with no
-expression.
+## The API
+Three endpoints, no authentication of any kind. Confirmed with bare curl sending only `Content-Type`, and confirmed again from a real browser on a foreign origin.
 
-The export is fully self-contained. Images are `data:` URIs, figures are inline
-SVG on the modern path, and math is MathML with a plain-English `alttext`. There
-are no external asset references, so the bank works offline once fetched.
-Render with MathJax; it handles MathML natively.
+```
+POST https://qbank-api.collegeboard.org/msreportingquestionbank-prod/questionbank/digital/get-questions
+     {"asmtEventId": 99, "test": 1, "domain": "INI,CAS,EOI,SEC"}   # 1 = RW, 2 = Math
+POST .../questionbank/digital/get-question   {"external_id": "..."}
+GET  https://saic.collegeboard.org/disclosed/{ibn}.json
+```
+
+Math domains are `H,P,Q,S`. Difficulty is E/M/H, but there's also `score_band_range_cd`, which runs 1 to 7 and is finer, so use that one if you ever build adaptive logic on top of this.
+
+The whole index is those first two calls and takes 1.7 seconds. The 3,767 individual bodies are what take five minutes.
 
 ## Explanations
+Each rationale arrives as one HTML blob covering all four choices, and [satbluebank/rationale.py](satbluebank/rationale.py) splits it into a piece per choice. It cuts the HTML rather than flattened text, so MathML and inline SVG survive, and each piece gets rebalanced because the cuts land in the middle of a paragraph.
 
-College Board ships one rationale blob per question. For multiple choice it
-covers every option in turn ("Choice B is the best answer because...", "Choice A
-is incorrect because..."), so `rationale.split_explanations` cuts it into a
-`{letter: html}` map. That is what makes "here is why the answer you picked is
-wrong" possible from official text alone, with nothing generated.
+The wording varies more than you'd expect. `&nbsp;` shows up inside "Choice A&nbsp;is", the letter is sometimes wrapped in a tag, rejections come grouped as "Choices A, B, and C are incorrect", the verb goes missing in "Choice B incorrect.", and the `ibn` items use "<p>Incorrect Answer Rationale<br>" headers with no terminating period.
 
-Splitting is done on the HTML, not on flattened text, so MathML and SVG survive
-intact, and each segment is re-balanced because cuts land mid-paragraph.
-
-The parser handles the real variations in the source: `&nbsp;` inside "Choice
-A&nbsp;is", the letter wrapped in a tag (`Choice <span>C</span> is`), grouped
-rejections ("Choices A, B, and C are incorrect"), the singular-with-a-list typo
-("Choice B, C, and D are incorrect"), adverbs ("are also incorrect"), and the
-missing verb ("Choice B incorrect."). It ignores mid-sentence references that
-look like boundaries but are not, such as "...choice D is the only graph that
-passes through the point..." and "Choices B and D show models of the form...".
+Two shapes have to not match. "choice D is the only graph that passes through the point" is a mid sentence reference, and "Choices B and D show models of the form" is a plural reference rather than a rejection. Splitting on either of those truncates somebody's explanation.
 
 ## Correctness guards
+Two bugs in here silently produced wrong answer keys before they were caught, which is worse than a missing key because it tells you the wrong thing and you never find out.
 
-A wrong answer key is worse than a missing one, so recovery never falls back to
-a guess. Three invariants run on every normalize:
+| Bug | Effect |
+| :--- | :--- |
+| `.strip(".")` on a recovered answer | Turned `.1667` into `1667`, and it was live in the database |
+| `([^.]+?)` in the SPR pattern | Can't cross a decimal point, so "The correct answer is 0.25." captured `0` |
+| `re.findall("[A-D]", "A, B, and C", IGNORECASE)` | Also matches the a and d in "and" |
+| `{_SP}?` where `_SP` is `(?:...)+` | Compiles to a lazy one-or-more instead of an optional group |
 
-1. **Explanation against key.** Exactly one per-choice explanation must read as
-   correct, and it must be the keyed choice. Two questions in the bank have
-   stale letters in their rationale prose after their options were reordered;
-   for those the mapping is dropped and the full rationale is shown instead,
-   rather than telling you a wrong pick was right.
-2. **Recovered MCQ keys.** Exactly one distinct letter may match
-   `Choice X is the best/correct`. More than one means the wording changed.
-3. **Recovered SPR keys.** The value must be numeric-looking after commas and
-   spaces come off. The `alt` text is a screen-reader rendering, so a rationale
-   can say "three halves" where the enterable answer is `3/2` or `1.5`; the
-   "ways to enter" sentence is tried first for exactly that reason.
+`normalize` also cross checks the split against the key. Exactly one per choice explanation has to read as "correct" and it has to be the keyed choice. That agrees on 3,301 of 3,303 multiple choice questions. The two that don't are real defects in College Board's own text where the options were reordered and the prose wasn't updated, so their per choice mapping gets dropped and you see the whole rationale instead. Left alone they'd tell a student who picked D that they were right.
 
-Anything that fails is flagged and counted, never silently stored. `audit`
-prints the flagged set; a healthy corpus reports 3, all genuine defects in
-College Board's own text.
+`python -m satbluebank audit` should report exactly 3 flagged questions. If it reports more, something in the parser broke.
 
 ## Grading
+`correct_answer` is a list, and it mixes two different things: alternate spellings of one value like `["0.25", "1/4"]`, and genuinely different valid answers like `["7", "8", "13"]` for "one possible value of a". Grading is a membership test either way, so the review screen shows every accepted form rather than the first one.
 
-`correct_answer` is an array of accepted strings, and it conflates two different
-things: alternate spellings of one value (`["0.25", "1/4"]`) and genuinely
-different valid answers (`["7", "8", "13"]` for "a possible value of a"). Both
-grade as a membership test, but the review UI must show every accepted form, not
-`accepted[0]`, or it will tell you "the correct answer is 10/3" on a question
-where 3.75 was equally right.
+A response is also accepted if it's numerically equal to a listed answer, so typing 1.5 for a listed 3/2 is right. That comparison uses exact rational arithmetic, `Fraction` in Python and a BigInt fraction in TypeScript. Floats get 3/17 wrong.
 
-Responses are canonicalized before comparison (whitespace, thousands commas,
-unicode minus, leading zero, trailing decimal zeros), then checked for exact
-membership, then for exact rational equality. The result records which of the
-two matched.
+## Ordering
+Sets are ordered by `shuffle_key`, which is FNV-1a over the question id with a splitmix64 finalizer, in [satbluebank/db.py](satbluebank/db.py) and mirrored in [web/src/lib/shuffle.ts](web/src/lib/shuffle.ts). The two return identical values and the tests pin them.
 
-## Schema
+Without it, section sorts before domain and you get all 1,922 Math questions before the first Reading one. With it, question 40 is the same question tomorrow, after a rebuild, and on the other backend, because the key comes from the id rather than from stored state.
 
-`questions` holds the normalized bank; `attempts` holds your history from the
-first commit, because wrong-answer review is the reason to build this rather
-than use the real site. `key_recovered` marks the 81 questions whose answer was
-recovered from the rationale, and `flags_json` carries any normalize warnings.
-See `satbluebank/db.py`.
-
-`session.py` is the practice API the UI will sit on: `pick`, `get_question`,
-`submit`, `stats`, `wrong_answers`.
-
-## Refresh
-
-The index is the source of truth, not an append-only feed. Each sync reconciles
-against the full index, so a question that disappears is marked `retired` rather
-than left live, and an item migrating between paths cannot leave a duplicate.
-Key recovery is an algorithm in the normalize pass, not a stored fixup, so it
-re-runs every sync and cannot go stale. Rerun `normalize` over everything after
-any refresh; it is a local pass and costs seconds.
-
-## The app
-
-React and TypeScript, built with Vite into `web/dist`, which `serve` hosts. No
-separate frontend server in normal use.
-
-| Piece | Where |
-|---|---|
-| Bluebook shell, split pane, navigator, timer | `web/src/App.tsx`, `components/` |
-| Highlight and note anchoring | `web/src/lib/ranges.ts` |
-| Per-question timer | `web/src/lib/useTimer.ts` |
-| API client | `web/src/api.ts` |
-
-**Highlights** are anchored by character offset into a field's text, measured
-over text nodes only, skipping math, figures, and images. That is what lets
-MathJax replace every `<math>` element with generated SVG without moving a
-single highlight. The question HTML is fixed once it is in the database, so the
-offsets stay valid across reloads.
-
-**Math** is rendered by MathJax, vendored into `web/public/mathjax` as the
-MathML-to-SVG build. SVG output means no font files to fetch, so it works
-offline.
-
-**The timer** starts when a question is shown and stops when you answer, and
-does not accrue while the tab is hidden, so a question left open overnight does
-not record as an eight-hour attempt.
-
-**Desmos** loads from their CDN the first time you open the calculator, and not
-before, so the rest of the app needs no network. It uses the demo API key from
-Desmos's own docs; get your own if you ever host this publicly.
-
-**The answer key never reaches the browser before you answer.** `GET
-/api/questions/{id}` omits the key, the per-choice explanations, and the
-rationale. They come back only in the response to `POST .../answer`.
+The finalizer isn't optional. Raw FNV-1a barely reaches the high bits, which are the ones a sort reads, so every id starting with the same letter landed together and the "shuffle" was really sorting by first character.
 
 ## Tests
-
 ```
-python -m unittest discover -s tests    # 29 backend tests
-cd web && npm test                      # 12 highlight-anchoring tests
+python -m pytest tests -q     # 32
+cd web && npm test            # 57
 ```
 
-Every case is a shape that actually occurs in the bank, with the question id it
-came from in a comment.
+The rationale parser and the grader exist in both Python and TypeScript, and the TypeScript ports were checked against the Python by running both over the whole corpus: all 3,767 rationales split identically, every explanation classified identically, every recovered key identical. The committed tests are the standing guard, that run was the one off proof. The HTML in the committed cases is paraphrased rather than copied, so no question content is in the repo.
+
+## The app
+Split pane with a draggable divider for Reading and Writing, figures inline above the question for Math, since that's how the real app does it. Highlighting and notes, cross out, a question navigator with a folded corner ribbon on anything marked for review, and the Desmos calculator on math questions.
+
+The calculator runs in Desmos's restricted testing mode, which is their `restrictedFunctions` option. You can tell it took effect because the keypad key reads "funcs" rather than "functions", and the real Bluebook keypad also reads "funcs". It opens as a portrait window on purpose, because Desmos lays itself out responsively and a narrow container stacks the graph above the expression list the way Bluebook shows it. A landscape window puts the expressions down the left and looks nothing like it.
+
+Highlight offsets are measured over text nodes only, skipping math, SVG and images. That's what lets MathJax replace every `<math>` with generated SVG without moving a highlight. Don't simplify the skip.
+
+MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Desmos loads from their CDN the first time you open the calculator, and nothing else in the app needs the network once it's built.
+
+## Screenshots and content
+The screenshots in this README are the picker and the stats page, both of which show counts and no question text. A screenshot of the practice view would put a College Board passage, its answer choices and its rationale into a public repo, which is the one thing this project otherwise doesn't do.

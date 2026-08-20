@@ -66,15 +66,19 @@ button { font-family: inherit; }
 
 /* ============================ home ============================ */
 /*
- * Applying the Apple design notes:
- *  - typography: tracking is size-specific, tight and negative at display size,
- *    near zero on body; leading tracks size inversely (SKILL 15).
- *  - colour carries information rather than decorating: each section owns a hue
- *    and every domain chip inherits it, so which half of the test you are
- *    looking at is readable without reading (SKILL 16, grouping and mapping).
- *  - response lives on pointer-down, not on release (SKILL 1).
- *  - the start bar is a translucent material with content scrolling under it,
- *    not an opaque strip with a hard rule (SKILL 12).
+ * Two things were making this read as generated: it was sans-only, and it was a
+ * flat stack of four identical pill rows with no structure.
+ *
+ *  - Type: the display sizes use Noto Serif, the same face the question content
+ *    uses. Sans-only is the default look of every landing page; the serif is
+ *    what the product actually looks like, and hierarchy comes from weight and
+ *    face together, not size alone (SKILL 15).
+ *  - Structure: the section choice is the primary decision and gets its own
+ *    weight; every refinement lives in ONE panel with labels down the left, so
+ *    the page reads as a tool rather than a list (SKILL 12 material weight
+ *    encodes hierarchy, SKILL 16 simplicity is not minimalism).
+ *  - Colour still carries information: each section owns a hue and its domain
+ *    and skill chips inherit it.
  */
 .home {
   --rw: #0f766e;
@@ -94,34 +98,26 @@ button { font-family: inherit; }
   position: relative;
   height: 100%; overflow-y: auto;
   display: flex; flex-direction: column;
-  background: linear-gradient(180deg, #f3f6fc 0%, #fbfbfd 300px, #fbfbfd 100%);
+  background: #f2f3f7;              /* flat ground, no gradient wash */
 }
-/* flex:1 0 auto is what pushes the start bar to the bottom on a short page
-   while still letting a long page scroll normally underneath it. */
-.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 40px 28px 24px; }
+.home-inner { flex: 1 0 auto; width: 100%; max-width: 940px; margin: 0 auto; padding: 44px 28px 28px; }
 
-/* ---- header ----
- * An app header, not a marketing hero. A 3.5rem headline over a muted one-liner
- * is the shape of a generated landing page, and the page is not a landing page:
- * the job is pick a set, start. So the identity and the live progress share one
- * row and the picker begins immediately (SKILL 16, simplicity is not minimalism
- * -- strip what does not serve the purpose, and let hierarchy do the talking).
- */
+/* ---- header ---- */
 .hero {
   display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 28px; flex-wrap: wrap;
-  padding-bottom: 20px; border-bottom: 1px solid var(--line);
+  gap: 28px; flex-wrap: wrap; margin-bottom: 26px;
 }
 .hero-id { min-width: 0; }
 .hero-title {
   margin: 0;
-  font-size: 27px; font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.024em;       /* negative tracking, scaled to this size */
+  font-family: var(--serif);
+  font-size: 30px; font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 .hero-sub {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font-size: 14.5px; line-height: 1.45; letter-spacing: 0;
   color: var(--muted);
 }
@@ -136,9 +132,12 @@ button { font-family: inherit; }
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
   text-transform: uppercase; color: var(--muted);
 }
-.hero-progress-value { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.hero-progress-value .dim { color: var(--muted); font-weight: 500; }
-.meter { height: 6px; border-radius: 999px; background: var(--all-soft); overflow: hidden; }
+.hero-progress-value {
+  font-family: var(--serif); font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.hero-progress-value .dim { color: var(--muted); font-weight: 400; }
+.meter { height: 6px; border-radius: 999px; background: #dfe2ea; overflow: hidden; }
 .meter-fill {
   display: block; height: 100%; border-radius: 999px; min-width: 3px;
   background: linear-gradient(90deg, var(--rw), var(--math));
@@ -146,90 +145,107 @@ button { font-family: inherit; }
 }
 .hero-figure { display: flex; flex-direction: column; gap: 0; }
 .hero-figure-n {
-  font-size: 21px; font-weight: 700; letter-spacing: -.025em;
+  font-family: var(--serif);
+  font-size: 22px; font-weight: 700; letter-spacing: -.015em;
   font-variant-numeric: tabular-nums; line-height: 1.15;
 }
 .hero-figure-l {
   font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
   text-transform: uppercase; color: var(--muted);
 }
-/* ---- fields ---- */
-.field { margin-top: 34px; flex: 1; min-width: 0; }
-.field-head { display: flex; align-items: center; gap: 12px; margin-bottom: 13px; }
-.field-head h2 {
-  margin: 0; font-size: 11.5px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
-}
-.field-hint { margin: 0; font-size: 14.5px; color: var(--muted); }
-.field-row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
-.field-row .field { flex: 1 1 300px; }
 
+/* ---- primary choice ---- */
+.picker-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.picker-head h2 {
+  margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--ink);
+}
 .reset {
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
   background: none; border: none; cursor: pointer; padding: 4px 10px;
   border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted);
 }
-.reset:hover { background: var(--all-soft); color: var(--ink); }
+.reset:hover { background: #e4e7ee; color: var(--ink); }
 .reset:active { transform: scale(.96); }
 
-/* ---- section cards ---- */
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .card {
   --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
   position: relative; overflow: hidden; text-align: left; cursor: pointer;
-  background: var(--bg); border: 1px solid var(--line);
-  border-radius: var(--r-lg); padding: 17px 18px 18px;
-  display: flex; flex-direction: column; gap: 4px;
-  transition: border-color .16s, box-shadow .16s, transform .16s, background .16s;
+  background: var(--bg); border: 1px solid transparent;
+  border-radius: 12px; padding: 18px 18px 17px;
+  display: flex; flex-direction: column; gap: 3px;
+  box-shadow: 0 1px 2px rgba(16, 20, 30, .07), 0 0 0 1px rgba(16, 20, 30, .05);
+  transition: box-shadow .16s, transform .16s, background .16s;
 }
 .card.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
 .card.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
-/* The colour bar along the top edge is the section identity. It is there
-   whether or not the card is selected, so the hue teaches before you click. */
-.card::before {
-  content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--tone);
-}
-.card:hover { border-color: var(--tone-line); transform: translateY(-2px); }
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 20, 30, .1), 0 0 0 1px rgba(16, 20, 30, .07); }
 .card:active { transform: translateY(0) scale(.99); }
 .card.on {
-  border-color: var(--tone); background: var(--tone-soft);
-  box-shadow: inset 0 0 0 1px var(--tone);
+  background: var(--tone-soft);
+  box-shadow: 0 0 0 2px var(--tone), 0 6px 16px rgba(16, 20, 30, .09);
 }
+.card.tone-all.on { box-shadow: 0 0 0 2px #97a0b4, 0 6px 16px rgba(16, 20, 30, .09); }
 .card-n {
-  font-size: 22px; font-weight: 700; letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums; color: var(--tone); line-height: 1.15;
+  font-family: var(--serif);
+  font-size: 28px; font-weight: 700; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; color: var(--tone); line-height: 1.1;
 }
-.card-t { font-size: 16px; font-weight: 650; letter-spacing: -.012em; }
+.card-t { margin-top: 4px; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; }
 .card-b { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .card.on .card-b { color: var(--ink-2); }
 
+/* ---- refinements: one panel, labels down the left ---- */
+.refine {
+  margin-top: 22px; background: var(--bg); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 20, 30, .07), 0 0 0 1px rgba(16, 20, 30, .05);
+  overflow: hidden;
+}
+.refine-row {
+  display: grid; grid-template-columns: 92px 1fr; gap: 16px;
+  align-items: start; padding: 14px 20px;
+}
+.refine-row + .refine-row { border-top: 1px solid var(--line); }
+.refine-label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--muted); padding-top: 9px;
+}
+.refine-hint { margin: 0; padding-top: 8px; font-size: 13.5px; color: var(--muted); }
+
 /* ---- chips ---- */
-.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chips { display: flex; gap: 7px; flex-wrap: wrap; }
+/* Zero-height full-width item: forces the next chip onto a new line so the
+   Reading and Writing group never shares a row with the Math group. */
+.chips-break { flex-basis: 100%; height: 0; }
 .chip {
   --tone: var(--all); --tone-soft: var(--all-soft); --tone-line: var(--all-line);
   position: relative; overflow: hidden;
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
-  padding: 8px 15px; font: inherit; font-size: 14px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--bg); border: 1px solid var(--line-2); border-radius: 7px;
+  padding: 7px 12px; font: inherit; font-size: 13.5px; font-weight: 500;
   color: var(--ink-2); cursor: pointer;
   transition: border-color .14s, background .14s, color .14s, transform .14s;
 }
 .chip.tone-rw { --tone: var(--rw); --tone-soft: var(--rw-soft); --tone-line: var(--rw-line); }
 .chip.tone-math { --tone: var(--math); --tone-soft: var(--math-soft); --tone-line: var(--math-line); }
-.chip:has(.chip-n) { padding-right: 8px; }
-.chip:hover { border-color: var(--tone-line); background: var(--tone-soft); color: var(--ink); }
+.chip:has(.chip-n) { padding-right: 7px; }
+.chip:hover { border-color: var(--tone); background: var(--tone-soft); color: var(--ink); }
 .chip:active { transform: scale(.97); }
 .chip.on { background: var(--tone); border-color: var(--tone); color: #fff; font-weight: 600; }
+.chip.tone-all.on {
+  background: #e8ebf2; border-color: #97a0b4; color: var(--ink);
+  box-shadow: inset 0 0 0 1px #97a0b4;
+}
+.chip.tone-all.on .chip-n { background: rgba(255, 255, 255, .85); color: var(--ink-2); }
 .chip-n {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 27px; height: 21px; padding: 0 7px; border-radius: 999px;
+  min-width: 26px; height: 19px; padding: 0 6px; border-radius: 5px;
   background: var(--tone-soft); color: var(--tone);
-  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.chip.on .chip-n { background: rgba(255, 255, 255, .24); color: #fff; }
+.chip.on .chip-n { background: rgba(255, 255, 255, .22); color: #fff; }
 
-/* How much of this domain you have attempted. A hairline rather than a labelled
-   progress bar: it is ambient, not something you are meant to read precisely. */
+/* How much of this domain you have attempted. Ambient, not a labelled bar. */
 .chip-meter {
   position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
   background: var(--tone); opacity: .5;
@@ -238,35 +254,36 @@ button { font-family: inherit; }
 }
 .chip.on .chip-meter { background: #fff; opacity: .85; }
 
-/* Difficulty reads as a scale, so it gets the conventional traffic colours. */
+/* Difficulty is a scale, so it gets the conventional traffic colours. */
 .chip.diff-E { --tone: var(--easy); --tone-soft: #eaf6ee; --tone-line: #a8d6b8; }
 .chip.diff-M { --tone: var(--medium); --tone-soft: #fbf1e6; --tone-line: #e3bd8c; }
 .chip.diff-H { --tone: var(--hard); --tone-soft: #fdecf0; --tone-line: #efaebe; }
-.diff-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+.diff-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: none; }
 .chip.on .diff-dot { background: #fff; }
 
-/* ---- sticky start bar: a material, not a strip ---- */
+/* ---- start bar: a material, not a strip ---- */
 .startbar {
   position: sticky; bottom: 0; z-index: 10;
   padding: 26px 28px 20px;
-  /* Content fades out under the bar instead of meeting a hard 1px rule. */
   background: linear-gradient(180deg,
-    rgba(251, 251, 253, 0) 0%, rgba(251, 251, 253, .85) 45%, #fbfbfd 100%);
+    rgba(242, 243, 247, 0) 0%, rgba(242, 243, 247, .88) 45%, #f2f3f7 100%);
   pointer-events: none;
 }
 .startbar-inner {
   pointer-events: auto;
   max-width: 940px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 11px 12px 11px 24px; border-radius: 999px;
-  background: rgba(255, 255, 255, .72);
+  padding: 10px 11px 10px 22px; border-radius: 12px;
+  background: rgba(255, 255, 255, .74);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, .8);
-  box-shadow: 0 10px 30px rgba(16, 20, 30, .12), 0 0 0 1px rgba(16, 20, 30, .05);
+  box-shadow: 0 8px 26px rgba(16, 20, 30, .14), 0 0 0 1px rgba(16, 20, 30, .07);
 }
-.count { color: var(--ink-2); font-size: 14.5px; }
-.count strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.count { color: var(--ink-2); font-size: 14px; }
+.count strong {
+  font-family: var(--serif);
+  color: var(--ink); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
 
 @media (prefers-reduced-transparency: reduce) {
   .startbar-inner { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -277,8 +294,13 @@ button { font-family: inherit; }
   .meter-fill, .chip-meter { transition: none; }
 }
 @media (prefers-contrast: more) {
-  .card, .chip { border-color: var(--ink-2); }
-  .startbar-inner { background: #fff; border-color: var(--ink); }
+  .chip { border-color: var(--ink-2); }
+  .startbar-inner { background: #fff; }
+}
+@media (max-width: 720px) {
+  .cards { grid-template-columns: 1fr; }
+  .refine-row { grid-template-columns: 1fr; gap: 8px; }
+  .refine-label { padding-top: 0; }
 }
 
 /* ============================ shell ============================ */

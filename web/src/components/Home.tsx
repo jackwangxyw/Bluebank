@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { Icon } from './Icon'
 import type { Difficulty, Filters, Section, Stats, TaxonomyRow } from '../types'
 
@@ -143,9 +143,9 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
           ) : null}
         </header>
 
-        <section className="field">
-          <div className="field-head">
-            <h2>Section</h2>
+        <section className="picker">
+          <div className="picker-head">
+            <h2>Choose a section</h2>
             {dirty ? (
               <button className="reset" onClick={() => onChange({})}>
                 <Icon name="close" size={13} strokeWidth={2.4} />
@@ -172,54 +172,62 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
           </div>
         </section>
 
-        <section className="field">
-          <div className="field-head"><h2>Domain</h2></div>
-          <div className="chips">
-            <button className={`chip tone-all${!value.domain ? ' on' : ''}`}
-                    onClick={() => set({ domain: undefined, skill: undefined })}>
-              All domains
-            </button>
-            {domains.map((d) => (
-              <button key={d.code}
-                      className={`chip tone-${sectionOf(d.section)}${value.domain === d.code ? ' on' : ''}`}
-                      onClick={() => set({ domain: d.code, skill: undefined })}>
-                <span className="chip-label">{d.name}</span>
-                <span className="chip-n">{d.n}</span>
-                {/* How much of this domain you have attempted, as a hairline. */}
-                <span className="chip-meter"
-                      style={{ transform: `scaleX(${d.n ? d.seen / d.n : 0})` }} />
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="field">
-          <div className="field-head"><h2>Skill</h2></div>
-          {value.domain ? (
+        {/* One panel with labels on the left, rather than four identical
+            stacked groups. Structure is what stops this reading as a list. */}
+        <section className="refine">
+          <div className="refine-row">
+            <span className="refine-label">Domain</span>
             <div className="chips">
-              <button className={`chip tone-all${!value.skill ? ' on' : ''}`}
-                      onClick={() => set({ skill: undefined })}>
-                All skills
+              <button className={`chip tone-all${!value.domain ? ' on' : ''}`}
+                      onClick={() => set({ domain: undefined, skill: undefined })}>
+                All
               </button>
-              {skills.map((s) => (
-                <button key={s.code}
-                        className={`chip tone-${sectionOf(value.section ?? 'ALL')}${value.skill === s.code ? ' on' : ''}`}
-                        onClick={() => set({ skill: s.code })}>
-                  <span className="chip-label">{s.name}</span>
-                  <span className="chip-n">{s.n}</span>
-                  <span className="chip-meter"
-                        style={{ transform: `scaleX(${s.n ? s.seen / s.n : 0})` }} />
-                </button>
+              {domains.map((d, i) => (
+                <Fragment key={d.code}>
+                  {/* Force a line break where the section changes, so the two
+                      colour groups do not interleave mid-row when they wrap. */}
+                  {i > 0 && domains[i - 1].section !== d.section
+                    ? <span className="chips-break" />
+                    : null}
+                  <button
+                    className={`chip tone-${sectionOf(d.section)}${value.domain === d.code ? ' on' : ''}`}
+                    onClick={() => set({ domain: d.code, skill: undefined })}>
+                    <span className="chip-label">{d.name}</span>
+                    <span className="chip-n">{d.n}</span>
+                    <span className="chip-meter"
+                          style={{ transform: `scaleX(${d.n ? d.seen / d.n : 0})` }} />
+                  </button>
+                </Fragment>
               ))}
             </div>
-          ) : (
-            <p className="field-hint">Pick a domain to narrow down to one skill.</p>
-          )}
-        </section>
+          </div>
 
-        <div className="field-row">
-          <section className="field">
-            <div className="field-head"><h2>Difficulty</h2></div>
+          <div className="refine-row">
+            <span className="refine-label">Skill</span>
+            {value.domain ? (
+              <div className="chips">
+                <button className={`chip tone-all${!value.skill ? ' on' : ''}`}
+                        onClick={() => set({ skill: undefined })}>
+                  All
+                </button>
+                {skills.map((s) => (
+                  <button key={s.code}
+                          className={`chip tone-${sectionOf(value.section ?? 'ALL')}${value.skill === s.code ? ' on' : ''}`}
+                          onClick={() => set({ skill: s.code })}>
+                    <span className="chip-label">{s.name}</span>
+                    <span className="chip-n">{s.n}</span>
+                    <span className="chip-meter"
+                          style={{ transform: `scaleX(${s.n ? s.seen / s.n : 0})` }} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="refine-hint">Pick a domain first</p>
+            )}
+          </div>
+
+          <div className="refine-row">
+            <span className="refine-label">Difficulty</span>
             <div className="chips">
               <button className={`chip tone-all${!value.difficulty ? ' on' : ''}`}
                       onClick={() => set({ difficulty: undefined })}>Any</button>
@@ -232,10 +240,10 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
                 </button>
               ))}
             </div>
-          </section>
+          </div>
 
-          <section className="field">
-            <div className="field-head"><h2>Your history</h2></div>
+          <div className="refine-row">
+            <span className="refine-label">History</span>
             <div className="chips">
               <button className={`chip tone-all${!value.status ? ' on' : ''}`}
                       onClick={() => set({ status: undefined })}>Any</button>
@@ -245,8 +253,8 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
                         onClick={() => set({ status: s.key })}>{s.label}</button>
               ))}
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
 
       <div className="startbar">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from './api'
 import { Home } from './components/Home'
 import { Navigator } from './components/Navigator'
+import { Notes } from './components/Notes'
 import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
 import { Icon } from './components/Icon'
@@ -43,10 +44,11 @@ export default function App() {
   const [crossOutMode, setCrossOutMode] = useState(true)
 
   const [showNavigator, setShowNavigator] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
   const [showDirections, setShowDirections] = useState(false)
   const [showTimer, setShowTimer] = useState(true)
   const [showDesmos, setShowDesmos] = useState(false)
-  const [desmosSplit, setDesmosSplit] = useState(false)
+  const [desmosSplit, setDesmosSplit] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -147,6 +149,7 @@ export default function App() {
       if (event.key === 'ArrowLeft') go(index - 1)
       if (event.key === 'Escape') {
         setShowNavigator(false); setShowDesmos(false); setShowDirections(false)
+        setShowNotes(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -210,13 +213,16 @@ export default function App() {
               <span>Calculator</span>
             </button>
           ) : null}
-          <button className={showNavigator ? 'tool on' : 'tool'}
-                  onClick={() => setShowNavigator(true)} disabled={!items.length}>
+          <button className={showNotes ? 'tool on' : 'tool'}
+                  onClick={() => setShowNotes((v) => !v)}>
             <span className="tool-glyphs">
               <Icon name="highlighter" size={21} />
               <Icon name="note" size={20} />
             </span>
-            <span>Review</span>
+            <span>
+              Highlights &amp; Notes
+              {annotations.length ? ` (${annotations.length})` : ''}
+            </span>
           </button>
           <div className="tool static">
             <span className="tool-glyphs"><Icon name="check" size={21} /></span>
@@ -233,7 +239,10 @@ export default function App() {
         <div className="error" onClick={() => setError(null)}>{error} (dismiss)</div>
       ) : null}
 
-      <main className={desmosSplit ? 'main is-split-tool' : 'main'}>
+      <main className={desmosSplit === null ? 'main' : 'main is-split-tool'}
+            style={desmosSplit === null
+              ? undefined
+              : ({ '--tool-split': `${desmosSplit}%` } as React.CSSProperties)}>
         {loading ? <div className="placeholder">Loading question…</div> : null}
         {!loading && !current ? (
           <div className="placeholder">No questions match these filters.</div>
@@ -288,6 +297,12 @@ export default function App() {
       {showNavigator ? (
         <Navigator items={items} current={index} title={setTitle}
                    onGo={go} onClose={() => setShowNavigator(false)} />
+      ) : null}
+
+      {showNotes ? (
+        <Notes annotations={annotations}
+               onRemove={(id) => persistAnnotations(annotations.filter((a) => a.id !== id))}
+               onClose={() => setShowNotes(false)} />
       ) : null}
 
       {showDirections ? (

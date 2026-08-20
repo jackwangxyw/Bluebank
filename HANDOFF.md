@@ -515,6 +515,37 @@ states. Backend 29 tests and frontend 12 tests pass, `tsc --noEmit` clean.
 
 **Cross-out toggle** is on by default, per user request.
 
+### Pass 5 fixes (2026-08-19), all verified in a browser
+
+- **`sr-only` was rendering.** The bank ships a long-form description of every
+  chart for screen readers, marked `class="sr-only"`, and it is in **1,375 of
+  3,767 questions**. With no rule for the class, the whole data table
+  ("Begins at 1900, 25.9. Falls gradually to 1910, 25.1 ...") was dumped onto
+  the page under the graph. Now clipped, **not** `display: none`: the text must
+  stay in the accessibility tree, and it must stay in the text-node stream or
+  every saved highlight offset after it would shift.
+- **`.hl-note` was two different things.** The popup's note input and the
+  `<mark>` for a highlight-with-a-note shared one class, so every noted
+  highlight picked up the input's pill border, radius and padding. The input is
+  `.hl-note-input` now. Do not merge them again.
+- **"Full explanation" was already `--accent`.** Measured: `rgb(50,77,200)`,
+  the same blue as the Next button. It read purple because a bare `<summary>`
+  in thin 14px text looks like a default HTML disclosure link. Restyled as a
+  pill control with a custom chevron.
+- **The expanded calculator is draggable.** Split mode reports its percentage up
+  to the shell, which reflows the question pane via `--tool-split`, so dragging
+  the edge resizes both halves together like the passage divider. Verified: the
+  panel went 792px to 540px and the pane margin followed exactly.
+- **"Review" in the header was redundant** with the question pill in the footer.
+  Replaced with **Highlights & Notes**, as Bluebook has: a side panel listing
+  every mark on the question with its quote, its note, and a delete button.
+  The quoted text is read back out of the DOM via `data-ann-id` rather than
+  stored, so there is no schema change and nothing to keep in sync.
+
+The note flow was driven end to end over CDP: select text, popup appears,
+survives clicking into the input, note saves, the mark gets `hl-note` and a
+title, and the panel shows the quote and the note.
+
 ### Still not matched, deliberately
 
 - **The "THIS IS A PRACTICE TEST" banner** is in the reference but stays out;

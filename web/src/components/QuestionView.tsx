@@ -213,7 +213,7 @@ export function QuestionView(props: Props) {
             <Icon name="underline" size={16} />
           </button>
           <span className="hl-sep" />
-          <input className="hl-note" placeholder="Add a note" value={noteDraft}
+          <input className="hl-note-input" placeholder="Add a note" value={noteDraft}
                  onChange={(e) => setNoteDraft(e.target.value)}
                  onKeyDown={(e) => { if (e.key === 'Enter') commit('yellow') }} />
           <button className="hl-icon" title="Cancel"

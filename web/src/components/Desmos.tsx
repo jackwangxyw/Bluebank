@@ -53,7 +53,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 interface Props {
   onClose: () => void
-  onExpandedChange: (expanded: boolean) => void
+  /** Reports the split fraction, or null when floating, so the shell reflows. */
+  onExpandedChange: (split: number | null) => void
 }
 
 export function Desmos({ onClose, onExpandedChange }: Props) {
@@ -62,8 +63,10 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
   const calc = useRef<Calculator | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rect, setRect] = useState<Rect>({ ...remembered })
-  // Expanded snaps to the left half at full height, Bluebook's split-screen mode.
+  // Expanded snaps to the left at full height, Bluebook's split-screen mode.
   const [expanded, setExpanded] = useState(false)
+  // Where the split sits, as a percentage. Draggable like the passage divider.
+  const [splitPct, setSplitPct] = useState(50)
 
   useEffect(() => {
     let cancelled = false
@@ -93,8 +96,10 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
 
   // Expanding is a real split, not an overlay: the shell reflows the question
   // into the other half. Reset on unmount or the pane stays indented.
-  useEffect(() => { onExpandedChange(expanded) }, [expanded, onExpandedChange])
-  useEffect(() => () => onExpandedChange(false), [onExpandedChange])
+  useEffect(() => {
+    onExpandedChange(expanded ? splitPct : null)
+  }, [expanded, splitPct, onExpandedChange])
+  useEffect(() => () => onExpandedChange(null), [onExpandedChange])
 
   const bounds = useCallback(() => {
     const parent = panel.current?.parentElement
@@ -140,8 +145,27 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
     h: clamp(s.h + dy, MIN_H, limit.h - s.y),
   }))
 
+  /** Drag the split edge. Same feel as the passage/question divider. */
+  function onSplitDown(event: React.PointerEvent) {
+    event.preventDefault()
+    const limit = bounds()
+    document.body.classList.add('dragging')
+    function move(e: PointerEvent) {
+      const host = panel.current?.parentElement?.getBoundingClientRect()
+      const left = host?.left ?? 0
+      setSplitPct(clamp(((e.clientX - left) / limit.w) * 100, 25, 75))
+    }
+    function up() {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.classList.remove('dragging')
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   const style = expanded
-    ? undefined
+    ? { width: `${splitPct}%` }
     : { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
 
   return (
@@ -170,7 +194,10 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
 
       {error ? <p className="desmos-error">{error}</p> : <div ref={host} className="desmos-host" />}
 
-      {expanded ? null : (
+      {expanded ? (
+        <span className="desmos-split-grip" onPointerDown={onSplitDown}
+              title="Drag to resize" aria-hidden="true" />
+      ) : (
         <span className="desmos-resize" onPointerDown={onGripDown}
               title="Drag to resize" aria-hidden="true" />
       )}

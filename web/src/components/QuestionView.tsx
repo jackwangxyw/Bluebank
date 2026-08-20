@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RichText } from './RichText'
 import { Explanation } from './Explanation'
+import { FlagFilled, Icon } from './Icon'
 import type { Annotation, GradeResult, Question } from '../types'
 
 interface Props {
@@ -30,11 +31,7 @@ interface PendingSelection {
   y: number
 }
 
-const COLORS = [
-  { key: 'yellow', className: 'sw-yellow' },
-  { key: 'blue', className: 'sw-blue' },
-  { key: 'pink', className: 'sw-pink' },
-] as const
+const COLORS = ['yellow', 'blue', 'pink'] as const
 
 export function QuestionView(props: Props) {
   const {
@@ -50,8 +47,6 @@ export function QuestionView(props: Props) {
 
   const answered = result !== null
   const hasStimulus = Boolean(question.stimulus_html?.trim())
-  // Bluebook splits the screen for Reading and Writing passages. Math figures
-  // sit inline above the question instead.
   const isSplit = hasStimulus && question.section === 'RW'
 
   useEffect(() => { setPending(null); setNoteDraft('') }, [question.id])
@@ -59,7 +54,7 @@ export function QuestionView(props: Props) {
   useEffect(() => {
     function move(event: MouseEvent) {
       if (!dragging.current) return
-      setSplit(Math.min(75, Math.max(25, (event.clientX / window.innerWidth) * 100)))
+      setSplit(Math.min(72, Math.max(28, (event.clientX / window.innerWidth) * 100)))
     }
     function up() { dragging.current = false; document.body.classList.remove('dragging') }
     window.addEventListener('mousemove', move)
@@ -69,6 +64,11 @@ export function QuestionView(props: Props) {
       window.removeEventListener('mouseup', up)
     }
   }, [])
+
+  function startDrag() {
+    dragging.current = true
+    document.body.classList.add('dragging')
+  }
 
   function handleSelect(range: { field: string; start: number; end: number }) {
     const selection = window.getSelection()
@@ -108,18 +108,23 @@ export function QuestionView(props: Props) {
       <div className="q-head">
         <span className="q-num">{number}</span>
         <button className={flagged ? 'markbtn on' : 'markbtn'} onClick={onToggleFlag}>
-          <span className="bookmark">{flagged ? '🔖' : '🔖'}</span>
-          {flagged ? 'Marked for Review' : 'Mark for Review'}
+          {flagged ? <FlagFilled size={16} /> : <Icon name="flag" size={16} />}
+          <span>{flagged ? 'Marked for Review' : 'Mark for Review'}</span>
         </button>
+
+        <span className="q-head-spacer" />
+
+        <span className="q-meta">{question.skill_name}</span>
+
         {question.type === 'mcq' && !answered ? (
-          <button className={crossOutMode ? 'abc on' : 'abc'}
+          <button className={crossOutMode ? 'strike on' : 'strike'}
                   onClick={onToggleCrossOutMode}
+                  aria-pressed={crossOutMode}
                   title="Cross out answer choices">
-            ABC
+            <span className="strike-letters">ABC</span>
           </button>
         ) : null}
       </div>
-      <div className="dashrule q-head-rule" />
 
       <RichText className="stem" html={question.stem_html} field="stem"
                 annotations={annotations} onSelect={handleSelect}
@@ -150,9 +155,9 @@ export function QuestionView(props: Props) {
                 </button>
                 {crossOutMode && !answered ? (
                   <button className={isCrossed ? 'crossbtn on' : 'crossbtn'}
-                          title={isCrossed ? 'Undo cross out' : 'Cross out'}
+                          title={isCrossed ? 'Undo cross out' : `Cross out ${option.label}`}
                           onClick={() => onToggleCrossOut(option.label)}>
-                    {isCrossed ? '↺' : option.label}
+                    {isCrossed ? 'Undo' : option.label}
                   </button>
                 ) : null}
               </li>
@@ -163,7 +168,7 @@ export function QuestionView(props: Props) {
         <div className="spr">
           <label htmlFor="spr-input">Enter your answer</label>
           <input id="spr-input" className="spr-input" value={response ?? ''}
-                 disabled={answered} autoComplete="off"
+                 disabled={answered} autoComplete="off" placeholder="—"
                  onChange={(e) => onRespond(e.target.value)}
                  onKeyDown={(e) => { if (e.key === 'Enter' && response) onSubmit() }} />
         </div>
@@ -182,14 +187,11 @@ export function QuestionView(props: Props) {
   return (
     <div className="qview">
       {isSplit ? (
-        <div className="split" style={{ gridTemplateColumns: `${split}% 18px 1fr` }}>
+        <div className="split" style={{ gridTemplateColumns: `${split}% 1px 1fr` }}>
           <div className="pane">{stimulus}</div>
-          <div className="divider-wrap">
-            <div className="divider"
-                 onMouseDown={() => { dragging.current = true; document.body.classList.add('dragging') }} />
-            <span className="grab"
-                  onMouseDown={() => { dragging.current = true; document.body.classList.add('dragging') }}>
-              ◀▶
+          <div className="divider" onMouseDown={startDrag}>
+            <span className="grab" onMouseDown={startDrag}>
+              <Icon name="grip" size={14} strokeWidth={2.4} />
             </span>
           </div>
           <div className="pane">{prompt}</div>
@@ -200,20 +202,25 @@ export function QuestionView(props: Props) {
 
       {pending ? (
         <div className="hl-menu"
-             style={{ left: Math.min(window.innerWidth - 180, Math.max(180, pending.x)),
-                      top: Math.max(56, pending.y - 10) }}>
-          {COLORS.map((c) => (
-            <button key={c.key} className={`swatch ${c.className}`}
-                    title={`Highlight ${c.key}`} onClick={() => commit(c.key)} />
+             style={{
+               left: Math.min(window.innerWidth - 190, Math.max(190, pending.x)),
+               top: Math.max(58, pending.y - 12),
+             }}>
+          {COLORS.map((color) => (
+            <button key={color} className={`swatch sw-${color}`}
+                    title={`Highlight ${color}`} onClick={() => commit(color)} />
           ))}
-          <button className="swatch sw-underline" title="Underline"
-                  onClick={() => commit('underline')}>U</button>
+          <button className="hl-icon" title="Underline" onClick={() => commit('underline')}>
+            <Icon name="underline" size={16} />
+          </button>
           <span className="hl-sep" />
           <input className="hl-note" placeholder="Add a note" value={noteDraft}
                  onChange={(e) => setNoteDraft(e.target.value)}
                  onKeyDown={(e) => { if (e.key === 'Enter') commit('yellow') }} />
           <button className="hl-icon" title="Cancel"
-                  onClick={() => { setPending(null); setNoteDraft('') }}>🗑</button>
+                  onClick={() => { setPending(null); setNoteDraft('') }}>
+            <Icon name="close" size={16} />
+          </button>
         </div>
       ) : null}
     </div>

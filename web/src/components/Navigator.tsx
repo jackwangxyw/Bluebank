@@ -1,3 +1,4 @@
+import { Icon } from './Icon'
 import type { SetItem } from '../types'
 
 interface Props {
@@ -28,7 +29,9 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
       <div className="nav-popup" role="dialog" aria-label="Go to question">
         <div className="nav-head">
           <div className="nav-title">{title}</div>
-          <button className="nav-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="nav-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={18} />
+          </button>
         </div>
 
         <div className="nav-legend">
@@ -36,19 +39,20 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
           <span><i className="key key-first" /> Right first try</span>
           <span><i className="key key-retry" /> Right after retry</span>
           <span><i className="key key-wrong" /> Wrong</span>
-          <span><i className="key key-flag">⚑</i> For Review</span>
+          <span><Icon name="flag" size={15} className="key-flag" /> Marked</span>
         </div>
 
         <div className="nav-grid">
           {items.map((item, index) => (
             <button
               key={item.id}
-              className={`nav-cell is-${cellState(item)}`}
+              className={`nav-cell is-${cellState(item)}${index === current ? ' is-current' : ''}`}
               onClick={() => { onGo(index); onClose() }}
               title={`${item.skill_name} · ${item.difficulty}`}
             >
-              {index === current ? <span className="cell-pin">⌖</span> : null}
-              {item.flagged ? <span className="cell-flag">⚑</span> : null}
+              {item.flagged ? (
+                <Icon name="flag" size={11} className="cell-flag" strokeWidth={2.4} />
+              ) : null}
               {index + 1}
             </button>
           ))}

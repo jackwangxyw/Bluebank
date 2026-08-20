@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from './api'
-import { Filters } from './components/Filters'
+import { Home } from './components/Home'
 import { Navigator } from './components/Navigator'
 import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
+import { Icon } from './components/Icon'
 import { formatClock, useQuestionTimer } from './lib/useTimer'
 import type {
-  Annotation, Filters as FilterState, GradeResult, Question, SetItem, Stats, TaxonomyRow,
+  Annotation, Filters, GradeResult, Question, SetItem, Stats, TaxonomyRow,
 } from './types'
 
 const SECTION_LABEL = { RW: 'Reading and Writing', MATH: 'Math' } as const
@@ -23,11 +24,14 @@ const DIRECTIONS = {
 } as const
 
 export default function App() {
+  const [view, setView] = useState<'home' | 'practice'>('home')
+
   const [taxonomy, setTaxonomy] = useState<TaxonomyRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
-  const [filters, setFilters] = useState<FilterState>({})
+  const [filters, setFilters] = useState<Filters>({})
   const [items, setItems] = useState<SetItem[]>([])
   const [index, setIndex] = useState(0)
+  const [listLoading, setListLoading] = useState(true)
 
   const [question, setQuestion] = useState<Question | null>(null)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
@@ -35,18 +39,20 @@ export default function App() {
   const [response, setResponse] = useState<string | null>(null)
   const [result, setResult] = useState<GradeResult | null>(null)
   const [crossOut, setCrossOut] = useState<Set<string>>(new Set())
-  const [crossOutMode, setCrossOutMode] = useState(false)
+  // On by default: the cross-out tool is more useful than it is intrusive.
+  const [crossOutMode, setCrossOutMode] = useState(true)
 
   const [showNavigator, setShowNavigator] = useState(false)
   const [showDirections, setShowDirections] = useState(false)
-  const [showFilters, setShowFilters] = useState(true)
   const [showTimer, setShowTimer] = useState(true)
   const [showDesmos, setShowDesmos] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const current = items[index] ?? null
-  const seconds = useQuestionTimer(current?.id ?? null, question !== null && result === null)
+  const practising = view === 'practice'
+  const seconds = useQuestionTimer(
+    current?.id ?? null, practising && question !== null && result === null)
 
   useEffect(() => {
     api.taxonomy()
@@ -56,18 +62,20 @@ export default function App() {
 
   useEffect(() => {
     let stale = false
+    setListLoading(true)
     api.questionSet(filters)
       .then((d) => { if (!stale) { setItems(d.questions); setIndex(0) } })
       .catch((e: Error) => !stale && setError(e.message))
+      .finally(() => { if (!stale) setListLoading(false) })
     return () => { stale = true }
   }, [filters])
 
   useEffect(() => {
-    if (!current) { setQuestion(null); return }
+    if (!practising || !current) { setQuestion(null); return }
     let stale = false
     setLoading(true)
     setQuestion(null); setResult(null); setResponse(null)
-    setCrossOut(new Set()); setAnnotations([]); setCrossOutMode(false)
+    setCrossOut(new Set()); setAnnotations([])
     api.question(current.id)
       .then((d) => {
         if (stale) return
@@ -76,7 +84,7 @@ export default function App() {
       .catch((e: Error) => !stale && setError(e.message))
       .finally(() => { if (!stale) setLoading(false) })
     return () => { stale = true }
-  }, [current?.id])
+  }, [current?.id, practising])
 
   const go = useCallback((next: number) => {
     setIndex(Math.min(items.length - 1, Math.max(0, next)))
@@ -130,6 +138,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!practising) return
     function onKey(event: KeyboardEvent) {
       const tag = (event.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
@@ -141,28 +150,46 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [index, go])
+  }, [index, go, practising])
 
   const section = question?.section ?? filters.section ?? 'RW'
-  const moduleTitle = useMemo(() => {
-    const bits: string[] = [SECTION_LABEL[section]]
-    if (question?.domain_name) bits.push(question.domain_name)
-    return bits.join(': ')
-  }, [section, question?.domain_name])
+  const setTitle = useMemo(() => {
+    if (filters.skill && question?.skill_name) return question.skill_name
+    if (filters.domain && question?.domain_name) return question.domain_name
+    if (filters.section) return SECTION_LABEL[filters.section]
+    return 'All questions'
+  }, [filters, question?.domain_name, question?.skill_name])
+
+  if (!practising) {
+    return (
+      <>
+        {error ? (
+          <div className="error" onClick={() => setError(null)}>{error} (dismiss)</div>
+        ) : null}
+        <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
+              loading={listLoading} onChange={setFilters}
+              onStart={() => { setIndex(0); setView('practice') }} />
+      </>
+    )
+  }
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="topbar-left">
-          <div className="module-title">{moduleTitle}</div>
-          <button className="directions" onClick={() => setShowDirections((v) => !v)}>
-            Directions <span className="chev">{showDirections ? '▲' : '▼'}</span>
+          <button className="ghostlink" onClick={() => setView('home')}>
+            <Icon name="chevron-left" size={16} />
+            Go back
+          </button>
+          <button className="ghostlink" onClick={() => setShowDirections((v) => !v)}>
+            Directions
+            <Icon name={showDirections ? 'chevron-up' : 'chevron-down'} size={15} />
           </button>
         </div>
 
         <div className="topbar-center">
           <div className={showTimer ? 'clock' : 'clock is-hidden'}>
-            {showTimer ? formatClock(seconds) : '- - -'}
+            {showTimer ? formatClock(seconds) : '···'}
           </div>
           <button className="hide-btn" onClick={() => setShowTimer((v) => !v)}>
             {showTimer ? 'Hide' : 'Show'}
@@ -171,36 +198,25 @@ export default function App() {
 
         <div className="topbar-right">
           {section === 'MATH' ? (
-            <button className="tool" onClick={() => setShowDesmos((v) => !v)}>
-              <span className="glyph">🖩</span>
-              Calculator
+            <button className={showDesmos ? 'tool on' : 'tool'}
+                    onClick={() => setShowDesmos((v) => !v)}>
+              <Icon name="calculator" size={19} />
+              <span>Calculator</span>
             </button>
           ) : null}
-          <button className="tool" onClick={() => setShowFilters((v) => !v)}>
-            <span className="glyph">☰</span>
-            {showFilters ? 'Hide Filters' : 'Filters'}
-          </button>
-          {stats ? (
-            <div className="tool" style={{ cursor: 'default' }}>
-              <span className="glyph">
-                {stats.accuracy !== null ? `${Math.round(stats.accuracy * 100)}%` : '—'}
-              </span>
-              {stats.correct}/{stats.attempts}
-            </div>
-          ) : null}
+          <div className="tool static">
+            <Icon name="check" size={19} />
+            <span>
+              {stats && stats.attempts
+                ? `${stats.correct}/${stats.attempts}`
+                : '0/0'}
+            </span>
+          </div>
         </div>
       </header>
-      <div className="dashrule" />
-
-      <div className="banner">THIS IS A PRACTICE SET</div>
-
-      {showFilters ? (
-        <Filters taxonomy={taxonomy} value={filters} count={items.length}
-                 onChange={setFilters} />
-      ) : null}
 
       {error ? (
-        <div className="error" onClick={() => setError(null)}>{error} (click to dismiss)</div>
+        <div className="error" onClick={() => setError(null)}>{error} (dismiss)</div>
       ) : null}
 
       <main className="main">
@@ -232,18 +248,17 @@ export default function App() {
         {showDesmos ? <Desmos onClose={() => setShowDesmos(false)} /> : null}
       </main>
 
-      <div className="dashrule" />
       <footer className="bottombar">
-        <div className="who">SAT Bluebank</div>
-        <div>
+        <div className="bottom-left">
           <button className="navbtn" onClick={() => setShowNavigator(true)}
                   disabled={!items.length}>
-            Question {items.length ? index + 1 : 0} of {items.length}
-            <span className="chev">▲</span>
+            {items.length ? index + 1 : 0} of {items.length.toLocaleString()}
+            <Icon name="chevron-up" size={15} />
           </button>
         </div>
+        <div className="bottom-mid">{setTitle}</div>
         <div className="bottom-right">
-          <button className="btn ghost" onClick={() => go(index - 1)} disabled={index <= 0}>
+          <button className="btn quiet" onClick={() => go(index - 1)} disabled={index <= 0}>
             Back
           </button>
           <button className="btn primary" onClick={() => go(index + 1)}
@@ -254,7 +269,7 @@ export default function App() {
       </footer>
 
       {showNavigator ? (
-        <Navigator items={items} current={index} title={`${moduleTitle} Questions`}
+        <Navigator items={items} current={index} title={setTitle}
                    onGo={go} onClose={() => setShowNavigator(false)} />
       ) : null}
 
@@ -266,7 +281,7 @@ export default function App() {
               {DIRECTIONS[section].map((line) => <p key={line}>{line}</p>)}
             </div>
             <div className="dir-foot">
-              <button className="btn yellow" onClick={() => setShowDirections(false)}>
+              <button className="btn primary" onClick={() => setShowDirections(false)}>
                 Close
               </button>
             </div>

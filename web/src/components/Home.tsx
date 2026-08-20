@@ -87,11 +87,19 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
   }, [taxonomy, value.domain])
 
   const totals = useMemo(() => {
-    const out = { all: 0, seen: 0, RW: 0, MATH: 0 }
+    const out = {
+      all: 0, seen: 0,
+      RW: 0, MATH: 0,
+      seenRW: 0, seenMATH: 0,
+      correct: 0, correctRW: 0, correctMATH: 0,
+    }
     for (const row of taxonomy) {
       out.all += row.n
       out.seen += row.seen
+      out.correct += row.correct
       out[row.section] += row.n
+      out[row.section === 'RW' ? 'seenRW' : 'seenMATH'] += row.seen
+      out[row.section === 'RW' ? 'correctRW' : 'correctMATH'] += row.correct
     }
     return out
   }, [taxonomy])
@@ -109,9 +117,27 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
     onChange({ section: next === 'ALL' ? undefined : next })
   }
 
-  const cards: { key: Exclude<Picked, null>; n: number; label: string; blurb: string }[] = [
-    { key: 'ALL', n: totals.all, label: 'Everything', blurb: 'Both sections, shuffled together' },
-    ...SECTIONS.map((s) => ({ key: s.key, n: totals[s.key], label: s.label, blurb: s.blurb })),
+  interface Card {
+    key: Exclude<Picked, null>
+    n: number
+    seen: number
+    correct: number
+    label: string
+    blurb: string
+  }
+  const cards: Card[] = [
+    {
+      key: 'ALL', n: totals.all, seen: totals.seen, correct: totals.correct,
+      label: 'Everything', blurb: 'Both sections, shuffled together',
+    },
+    ...SECTIONS.map((s) => ({
+      key: s.key as Exclude<Picked, null>,
+      n: totals[s.key],
+      seen: s.key === 'RW' ? totals.seenRW : totals.seenMATH,
+      correct: s.key === 'RW' ? totals.correctRW : totals.correctMATH,
+      label: s.label,
+      blurb: s.blurb,
+    })),
   ]
 
   return (
@@ -145,16 +171,34 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
         <section className="pick">
           <h2 className="label">Section</h2>
           <div className="cards">
-            {cards.map((c) => (
-              <button key={c.key}
-                      className={picked === c.key ? 'card on' : 'card'}
-                      aria-pressed={picked === c.key}
-                      onClick={() => choose(c.key)}>
-                <span className="card-n">{c.n.toLocaleString()}</span>
-                <span className="card-t">{c.label}</span>
-                <span className="card-b">{c.blurb}</span>
-              </button>
-            ))}
+            {cards.map((c) => {
+              const covered = c.n ? (c.seen / c.n) * 100 : 0
+              return (
+                <button key={c.key}
+                        className={picked === c.key ? 'card on' : 'card'}
+                        aria-pressed={picked === c.key}
+                        onClick={() => choose(c.key)}>
+                  <span className="card-top">
+                    <span className="card-n">{c.n.toLocaleString()}</span>
+                    <span className="card-tag">questions</span>
+                  </span>
+                  <span className="card-t">{c.label}</span>
+                  <span className="card-b">{c.blurb}</span>
+                  <span className="card-foot">
+                    <span className="card-meter"
+                          title={`${c.seen} of ${c.n} attempted`}>
+                      <span className="card-meter-fill"
+                            style={{ width: `${Math.max(covered, c.seen ? 1.5 : 0)}%` }} />
+                    </span>
+                    <span className="card-stat">
+                      {c.seen
+                        ? `${c.seen.toLocaleString()} done · ${Math.round((c.correct / c.seen) * 100)}%`
+                        : 'Not started'}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </section>
 

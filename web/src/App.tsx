@@ -189,6 +189,13 @@ export default function App() {
                     onClick={() => setView('stats')}>Stats</button>
             <button className={view === 'about' ? 'tab on' : 'tab'}
                     onClick={() => setView('about')}>About</button>
+            {/*
+              In the nav rather than in a page corner, so Home, Stats and About
+              all show it from one instance. It was on Stats only, and the user's
+              report was that nothing indicated sync existed. The practice view
+              renders its own header and deliberately does not get one.
+            */}
+            <AccountBadge />
           </div>
         </nav>
 
@@ -202,9 +209,6 @@ export default function App() {
           </div>
         ) : (
           <div className="page">
-            <div className="page-head">
-              <AccountBadge />
-            </div>
             <StatsPage taxonomy={taxonomy}
                        onPractice={(next) => {
                          setFilters(next)

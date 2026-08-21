@@ -104,17 +104,6 @@ function SignedOutPanel({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <div className="acct-panel" role="dialog" aria-label="Sync">
       <h3 className="acct-h">Sync across devices</h3>
-      <p className="acct-p">
-        Practice on a laptop, pick it up on a desktop. Your answers, highlights
-        and flagged questions follow you.
-      </p>
-      <div className="acct-note">
-        <p><strong>We don't store your email, name or picture.</strong> Signing
-        in links your progress to an anonymous Google account id and nothing else.</p>
-        <p>What is stored: which questions you answered, what you answered, your
-        highlights and notes, and which questions you flagged.</p>
-        <p>You can delete all of it at any time, from this panel.</p>
-      </div>
       <div className="acct-gbtn" ref={slot} />
       {error ? <p className="acct-err">{error}</p> : null}
       <p className="acct-fine">

@@ -938,11 +938,8 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
    corner of the You page; nothing appears on Home or Practice, and nothing
    appears at all when the build has no VITE_SYNC_API. */
 
-.page-head {
-  max-width: 900px; margin: 0 auto; padding: 20px 32px 0;
-  display: flex; justify-content: flex-end;
-}
-.acct { position: relative; }
+/* Pushed to the right-hand end of the nav row. */
+.acct { position: relative; margin-left: auto; }
 
 .acct-badge {
   display: inline-flex; align-items: center; gap: 8px;
@@ -990,13 +987,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   display: flex; align-items: center; gap: 8px;
   margin: 0 0 12px; font-size: 13px; color: var(--ink-2);
 }
-.acct-note {
-  margin: 0 0 14px; padding: 12px; border-radius: var(--r-md);
-  background: var(--bg-soft); border: 1px solid var(--line);
-}
-.acct-note p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
-.acct-note p:last-child { margin-bottom: 0; }
-.acct-gbtn { display: flex; justify-content: center; min-height: 44px; }
+.acct-gbtn { display: flex; justify-content: center; min-height: 44px; margin-top: 4px; }
 .acct-fine { margin: 12px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .acct-err {
   margin: 10px 0 0; padding: 8px 10px; border-radius: var(--r-sm);
@@ -1045,6 +1036,6 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 
 @media (max-width: 640px) {
   .acct-panel { width: min(340px, calc(100vw - 40px)); }
-  .page-head { padding: 16px 20px 0; }
+  .acct-label { display: none; }   /* dot only; the nav row runs out of width */
   .about { padding: 32px 20px 64px; }
 }

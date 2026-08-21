@@ -229,7 +229,7 @@ export default function App() {
         <nav className="tabs">
           <div className="tabs-inner">
             <span className="brand">
-              <Mark size={22} />
+              <Mark />
               <span className="wordmark">Bluebank</span>
             </span>
             <button className={view === 'home' ? 'tab on' : 'tab'}

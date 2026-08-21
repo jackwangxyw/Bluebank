@@ -100,7 +100,7 @@ button { font-family: inherit; color: inherit; }
 .brand { display: inline-flex; align-items: center; gap: 8px; margin-right: 26px; }
 .mark { display: block; flex: none; }
 .wordmark {
-  font-size: 14.5px; font-weight: 700;
+  font-size: 15.5px; font-weight: 700;
   letter-spacing: -.015em; color: var(--ink);
 }
 .tab {
@@ -1096,7 +1096,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .acct-badge { padding: 5px 10px 5px 9px; gap: 6px; }
   .tabs-inner { padding: 0 14px; gap: 0; }
   .brand { margin-right: 12px; gap: 7px; }
-  .wordmark { font-size: 14px; }
+  .wordmark { font-size: 15px; }
   .tab { padding: 0 9px; font-size: 13.5px; }
   .tab.on::after { left: 9px; right: 9px; }
   .about { padding: 32px 20px 64px; }

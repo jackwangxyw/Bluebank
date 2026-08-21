@@ -13,6 +13,32 @@ interface Props {
 }
 
 /**
+ * Give every table its own horizontal scroller.
+ *
+ * A figure scales down to fit a phone, but a table can't: the widest in the
+ * bank is 7 columns and wants 728px, and squeezing that into 390px makes it
+ * unreadable. Scrolling it inside its own box keeps the sideways drag on the
+ * table instead of taking the whole question with it.
+ *
+ * Done here rather than with `display: block; overflow-x: auto` in CSS, which
+ * looks like it should work and doesn't: it hands the table's sizing to an
+ * anonymous box that stretches to fill, so a two-column table went from 95px to
+ * the full width of the pane. The table has to stay a real table to shrink to
+ * fit its own contents.
+ *
+ * A wrapper element adds no text node and reorders none, so the offsets every
+ * saved highlight is anchored to are untouched (lib/ranges.ts).
+ */
+function wrapTables(host: HTMLElement): void {
+  for (const table of host.querySelectorAll('table')) {
+    const wrap = document.createElement('div')
+    wrap.className = 'tablewrap'
+    table.replaceWith(wrap)
+    wrap.appendChild(table)
+  }
+}
+
+/**
  * Renders official question HTML: MathML, inline SVG figures, tables, and
  * base64 images all arrive as-is from the bank.
  *
@@ -29,6 +55,7 @@ export function RichText({
     const host = ref.current
     if (!host) return
     host.innerHTML = html
+    wrapTables(host)
     applyHighlights(host, annotations.filter((a) => a.field === field))
     void typeset(host)
   }, [html, field, annotations])
@@ -47,10 +74,14 @@ export function RichText({
     if (Number.isFinite(id) && id > 0) onAnnotationClick(id)
   }
 
+  // `richtext` is always on, so the rules for official markup (figures that have
+  // to scale, tables that have to scroll) key off the renderer rather than off a
+  // list of its callers. Review and Explanation pass no className at all and
+  // were getting none of them.
   return (
     <div
       ref={ref}
-      className={className}
+      className={className ? `richtext ${className}` : 'richtext'}
       onMouseUp={handleMouseUp}
       onClick={handleClick}
     />

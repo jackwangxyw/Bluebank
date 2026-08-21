@@ -227,7 +227,6 @@ export function Stats({ taxonomy, onPractice, onReview }: Props) {
       <section className="block">
         <div className="block-head">
           <h2 className="h">Questions by domain</h2>
-          <span className="block-meta">bar length is bank size · fill is what you have seen</span>
         </div>
         <ul className="dbars">
           {domainList.map((d, i) => (

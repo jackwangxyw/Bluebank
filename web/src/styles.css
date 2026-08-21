@@ -941,10 +941,30 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   overflow: hidden; white-space: nowrap;
   clip: rect(0 0 0 0); clip-path: inset(50%);
 }
-.passage table, .stem table, .figure table { border-collapse: collapse; margin: 16px 0; font-size: 15px; }
-.passage th, .passage td, .stem th, .stem td, .figure th, .figure td { border: 1px solid var(--line-2); padding: 7px 13px; }
-.passage img, .stem img, .figure img, .choice-text img { max-width: 100%; height: auto; }
-.passage svg, .stem svg, .figure svg { max-width: 100%; height: auto; }
+/*
+ * Scoped to .richtext, which every RichText carries, rather than to a list of
+ * the containers that render question HTML. That list went stale in two places
+ * at once. It never picked up .choice-text for svg, so a figure in an answer
+ * choice ran 99px off a 390px screen, and Review and Explanation pass no
+ * className at all, so a 450px graph in a review passage had nothing capping it
+ * and ran off by 113px. Add a container and this follows it. Do not go back to
+ * naming them, the same way .sr-only above must not.
+ */
+.richtext th, .richtext td { border: 1px solid var(--line-2); padding: 7px 13px; }
+.richtext img, .richtext svg { max-width: 100%; height: auto; }
+
+/*
+ * 582 figures in the bank wrap a table or a graphic in <figure>, which the
+ * browser gives `margin: 1em 40px` by nobody's decision. On a 390px phone that
+ * is 80px, a fifth of the screen, spent on indenting the one element that had
+ * the least room to begin with.
+ */
+.richtext figure { margin: 16px 0; }
+
+/* The scroller RichText wraps every table in; see wrapTables there for why a
+   table cannot carry the overflow itself. */
+.richtext .tablewrap { overflow-x: auto; margin: 16px 0; }
+.richtext table { border-collapse: collapse; font-size: 15px; }
 .figure { margin-bottom: 22px; }
 
 @media (max-width: 820px) {
@@ -1186,11 +1206,8 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .dir-popup { top: 64px; width: min(680px, 94vw); }
   .nav-popup { width: min(720px, 96vw); max-height: 60vh; }
 
-  /* Wide question tables scroll themselves rather than the page. */
-  .passage table, .stem table, .figure table { font-size: 14px; }
-  .passage img, .stem img, .figure img, .passage svg, .stem svg, .figure svg {
-    max-width: 100%; height: auto;
-  }
+  /* Fitting rather than scrolling, for the tables narrow enough to manage it. */
+  .richtext table { font-size: 14px; }
 }
 
 /* Narrow phones. */

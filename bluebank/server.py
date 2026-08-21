@@ -54,6 +54,11 @@ def _one(query, key, default=None):
     return values[0] if values else default
 
 
+def _many(query, key):
+    """Every value for a repeated query key, e.g. ?difficulty=M&difficulty=H."""
+    return [v for v in query.get(key, []) if v]
+
+
 @Api.route("GET", r"/api/taxonomy")
 def _taxonomy(conn, query, body):
     return {"taxonomy": session.taxonomy(conn), "stats": session.stats(conn)}
@@ -63,10 +68,16 @@ def _taxonomy(conn, query, body):
 def _set(conn, query, body):
     rows = session.question_set(
         conn,
-        section=_one(query, "section"), domain=_one(query, "domain"),
-        skill=_one(query, "skill"), difficulty=_one(query, "difficulty"),
-        status=_one(query, "status"), order=_one(query, "order", "shuffled"))
+        section=_one(query, "section"), domains=_many(query, "domain"),
+        skills=_many(query, "skill"), difficulties=_many(query, "difficulty"),
+        statuses=_many(query, "status"), order=_one(query, "order", "shuffled"))
     return {"count": len(rows), "questions": rows}
+
+
+@Api.route("POST", r"/api/mistake/(?P<question_id>[^/]+)")
+def _mistake(conn, query, body, question_id):
+    return {"mistake": session.set_mistake(
+        conn, question_id, tags=body.get("tags"), note=body.get("note"))}
 
 
 def _flagged(conn, question_id):
@@ -82,6 +93,7 @@ def _question(conn, query, body, question_id):
         "question": session.public_question(question),
         "annotations": session.get_annotations(conn, question_id),
         "flagged": _flagged(conn, question_id),
+        "mistake": session.get_mistake(conn, question_id),
     }
 
 
@@ -89,6 +101,19 @@ def _question(conn, query, body, question_id):
 def _answer(conn, query, body, question_id):
     result = session.submit(conn, question_id, body.get("response"),
                             seconds=body.get("seconds"))
+    result.pop("question", None)
+    return result
+
+
+@Api.route("POST", r"/api/questions/([^/]+)/explain")
+def _explain(conn, query, body, question_id):
+    """The explanation for an answer already given, WITHOUT recording anything.
+
+    `record=False` is the whole point: the review page re-grades the stored
+    response only to get the rationale back, and must not add an attempt every
+    time you expand a row.
+    """
+    result = session.submit(conn, question_id, body.get("response"), record=False)
     result.pop("question", None)
     return result
 

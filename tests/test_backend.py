@@ -378,5 +378,195 @@ class TestAttemptIds(unittest.TestCase):
         self.assertEqual(uuid.UUID(stored).version, 4)
         conn.close()
 
+class TestFilterSql(unittest.TestCase):
+    """Practice-set filters are multi-select: OR inside one filter, AND between
+    them. The trap is an empty list, which means "filter is off" and must never
+    turn into `IN ()`, which matches nothing.
+    """
+
+    def test_no_filters_is_just_the_retired_guard(self):
+        where, params = session._filter_sql()
+        self.assertEqual(where, "q.retired = 0")
+        self.assertEqual(params, [])
+
+    def test_empty_lists_do_not_filter(self):
+        # The UI sends undefined, but an empty array must behave the same way
+        # rather than producing IN () and an empty practice set.
+        where, params = session._filter_sql(
+            domains=[], skills=[], difficulties=[], statuses=[])
+        self.assertEqual(where, "q.retired = 0")
+        self.assertEqual(params, [])
+
+    def test_several_values_in_one_filter_are_ored(self):
+        where, params = session._filter_sql(difficulties=["M", "H"])
+        self.assertIn("q.difficulty IN (?,?)", where)
+        self.assertEqual(params, ["M", "H"])
+
+    def test_filters_are_anded_with_each_other(self):
+        where, params = session._filter_sql(
+            section="RW", domains=["INI", "CAS"], difficulties=["H"])
+        self.assertIn("q.section = ?", where)
+        self.assertIn("q.domain IN (?,?)", where)
+        self.assertIn("q.difficulty IN (?)", where)
+        self.assertEqual(where.count(" AND "), 3)
+        self.assertEqual(params, ["RW", "INI", "CAS", "H"])
+
+    def test_statuses_are_ored_in_their_own_group(self):
+        # Without the brackets the OR would swallow the AND chain beside it and
+        # every filter above would stop applying.
+        where, _ = session._filter_sql(section="RW", statuses=["wrong", "flagged"])
+        self.assertIn("(last.correct = 0 OR m.flagged = 1)", where)
+
+    def test_unknown_status_is_ignored_not_injected(self):
+        where, params = session._filter_sql(statuses=["../etc/passwd"])
+        self.assertEqual(where, "q.retired = 0")
+        self.assertEqual(params, [])
+
+    def test_values_are_bound_never_interpolated(self):
+        where, params = session._filter_sql(domains=["'; DROP TABLE questions --"])
+        self.assertNotIn("DROP", where)
+        self.assertEqual(params, ["'; DROP TABLE questions --"])
+
+
+class TestQuestionSetFilters(unittest.TestCase):
+    """The same rules, against a real database."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.conn = db.connect(os.path.join(self.dir, "t.db"))
+        rows = [
+            ("q1", "RW", "INI", "Information and Ideas", "COE", "Evidence", "E"),
+            ("q2", "RW", "INI", "Information and Ideas", "COE", "Evidence", "M"),
+            ("q3", "RW", "CAS", "Craft and Structure", "WIC", "Words", "H"),
+            ("q4", "MATH", "H", "Algebra", "H.A.", "Linear", "H"),
+        ]
+        for qid, section, domain, dname, skill, sname, diff in rows:
+            self.conn.execute(
+                "INSERT INTO questions (id, source_path, section, domain,"
+                " domain_name, skill, skill_name, difficulty, type, stem_html,"
+                " correct_json, rationale_html, update_date)"
+                " VALUES (?,'external_id',?,?,?,?,?,?,'spr','stem','[\"4\"]','r',0)",
+                (qid, section, domain, dname, skill, sname, diff))
+        self.conn.commit()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def ids(self, **kwargs):
+        return sorted(r["id"] for r in session.question_set(self.conn, **kwargs))
+
+    def test_no_filter_returns_everything(self):
+        self.assertEqual(self.ids(), ["q1", "q2", "q3", "q4"])
+
+    def test_two_difficulties(self):
+        # The case that prompted this: medium AND hard, not one or the other.
+        self.assertEqual(self.ids(difficulties=["M", "H"]), ["q2", "q3", "q4"])
+
+    def test_two_domains(self):
+        self.assertEqual(self.ids(domains=["INI", "CAS"]), ["q1", "q2", "q3"])
+
+    def test_domains_and_difficulties_together(self):
+        self.assertEqual(self.ids(domains=["INI", "CAS"], difficulties=["M", "H"]),
+                         ["q2", "q3"])
+
+    def test_section_still_narrows(self):
+        self.assertEqual(self.ids(section="RW", difficulties=["H"]), ["q3"])
+
+    def test_empty_lists_match_everything(self):
+        self.assertEqual(self.ids(domains=[], difficulties=[]),
+                         ["q1", "q2", "q3", "q4"])
+
+
+class TestMistakeLog(unittest.TestCase):
+    """Tags plus a note, one row per question. The rule worth pinning is that an
+    empty log deletes the row: "never logged" and "logged then cleared" have to
+    be the same thing, because the review page filters on presence.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.conn = db.connect(os.path.join(self.dir, "t.db"))
+        self.conn.execute(INSERT_QUESTION)
+        self.conn.commit()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_absent_until_written(self):
+        self.assertIsNone(session.get_mistake(self.conn, "q1"))
+
+    def test_round_trip(self):
+        session.set_mistake(self.conn, "q1", tags=["silly", "knowledge"],
+                            note="misread the sign")
+        got = session.get_mistake(self.conn, "q1")
+        self.assertEqual(got["tags"], ["silly", "knowledge"])
+        self.assertEqual(got["note"], "misread the sign")
+
+    def test_unknown_tags_are_dropped_not_stored(self):
+        # A stale client must not be able to invent a category the review page
+        # has no label for.
+        session.set_mistake(self.conn, "q1", tags=["silly", "vibes", "<script>"])
+        self.assertEqual(session.get_mistake(self.conn, "q1")["tags"], ["silly"])
+
+    def test_clearing_removes_the_row(self):
+        session.set_mistake(self.conn, "q1", tags=["other"], note="x")
+        self.assertIsNone(session.set_mistake(self.conn, "q1", tags=[], note="   "))
+        self.assertIsNone(session.get_mistake(self.conn, "q1"))
+
+    def test_a_note_alone_is_enough(self):
+        session.set_mistake(self.conn, "q1", tags=[], note="ran out of time")
+        got = session.get_mistake(self.conn, "q1")
+        self.assertEqual(got["tags"], [])
+        self.assertEqual(got["note"], "ran out of time")
+
+    def test_writing_twice_updates_rather_than_duplicating(self):
+        session.set_mistake(self.conn, "q1", tags=["process"])
+        session.set_mistake(self.conn, "q1", tags=["knowledge"])
+        self.assertEqual(session.get_mistake(self.conn, "q1")["tags"], ["knowledge"])
+        n = self.conn.execute("SELECT COUNT(*) FROM mistakes").fetchone()[0]
+        self.assertEqual(n, 1)
+
+
+class TestReviewOrder(unittest.TestCase):
+    """The review page asks for answered questions, newest first."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.conn = db.connect(os.path.join(self.dir, "t.db"))
+        for qid in ("q1", "q2", "q3"):
+            self.conn.execute(INSERT_QUESTION.replace("'q1'", f"'{qid}'"))
+        # q2 answered most recently, q3 never answered.
+        for qid, when in (("q1", 1000), ("q2", 2000)):
+            self.conn.execute(
+                "INSERT INTO attempts (id, question_id, answered_at, response,"
+                " correct, seconds) VALUES (?,?,?,?,?,?)",
+                (db.new_attempt_id(), qid, when, "4", 1, 12))
+        self.conn.commit()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_recent_order_puts_the_latest_answer_first(self):
+        rows = session.question_set(self.conn, statuses=["correct", "wrong"],
+                                    order="recent")
+        self.assertEqual([r["id"] for r in rows], ["q2", "q1"])
+
+    def test_unanswered_questions_are_excluded(self):
+        rows = session.question_set(self.conn, statuses=["correct", "wrong"],
+                                    order="recent")
+        self.assertNotIn("q3", [r["id"] for r in rows])
+
+    def test_the_row_carries_what_review_shows(self):
+        row = session.question_set(self.conn, statuses=["correct", "wrong"],
+                                   order="recent")[0]
+        for field in ("last_response", "last_correct", "last_seconds",
+                      "answered_at", "attempt_count"):
+            self.assertIn(field, row.keys(), field)
+        self.assertEqual(row["last_seconds"], 12)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

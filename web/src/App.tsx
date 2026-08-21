@@ -7,13 +7,16 @@ import { AccountBadge } from './components/Account'
 import { GithubLink } from './components/Github'
 import { Navigator } from './components/Navigator'
 import { Notes } from './components/Notes'
+import { MistakeLog } from './components/MistakeLog'
+import { Review } from './components/Review'
 import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
 import { Icon } from './components/Icon'
 import { formatClock, useQuestionTimer } from './lib/useTimer'
 import * as sync from './lib/sync'
 import type {
-  Annotation, Filters, GradeResult, Question, SetItem, Stats, TaxonomyRow,
+  Annotation, Filters, GradeResult, Mistake, Question, SetItem,
+  Stats, TaxonomyRow,
 } from './types'
 
 const SECTION_LABEL = { RW: 'Reading and Writing', MATH: 'Math' } as const
@@ -30,7 +33,7 @@ const DIRECTIONS = {
 } as const
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'stats' | 'about' | 'practice'>('home')
+  const [view, setView] = useState<'home' | 'stats' | 'about' | 'review' | 'practice'>('home')
 
   /** Bumped by a sync that pulled rows; drives the taxonomy refetch below. */
   const [dataVersion, setDataVersion] = useState(0)
@@ -53,6 +56,8 @@ export default function App() {
 
   const [showNavigator, setShowNavigator] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const [showMistake, setShowMistake] = useState(false)
+  const [mistake, setMistake] = useState<Mistake | null>(null)
   const [showDirections, setShowDirections] = useState(false)
   const [showTimer, setShowTimer] = useState(true)
   const [showDesmos, setShowDesmos] = useState(false)
@@ -88,6 +93,20 @@ export default function App() {
   // when the build has no sync configured, so the localhost path is untouched.
   useEffect(() => { sync.start() }, [])
 
+  /**
+   * Open one question on its own, from Review. The set becomes just that
+   * question, so Back and Next have nowhere to wander and the navigator says
+   * 1 of 1.
+   */
+  const practiceOne = useCallback((id: string) => {
+    const found = items.find((i) => i.id === id)
+    if (found) { setItems([found]); setIndex(0); setView('practice'); return }
+    api.questionSet({}).then((d) => {
+      const one = d.questions.find((q) => q.id === id)
+      if (one) { setItems([one]); setIndex(0); setView('practice') }
+    }).catch((e: Error) => setError(e.message))
+  }, [items])
+
   // A pull from another device changes the same numbers an answer does.
   useEffect(() => sync.subscribe(() => setDataVersion(sync.getDataVersion())), [])
 
@@ -103,6 +122,7 @@ export default function App() {
 
   useEffect(() => {
     if (!practising || !current) { setQuestion(null); return }
+    setShowMistake(false)
     let stale = false
     setLoading(true)
     setQuestion(null); setResult(null); setResponse(null)
@@ -111,6 +131,7 @@ export default function App() {
       .then((d) => {
         if (stale) return
         setQuestion(d.question); setAnnotations(d.annotations); setFlagged(d.flagged)
+        setMistake(d.mistake)
       })
       .catch((e: Error) => !stale && setError(e.message))
       .finally(() => { if (!stale) setLoading(false) })
@@ -189,8 +210,12 @@ export default function App() {
   // section, then whatever the filters narrowed it to.
   const setTitle = useMemo(() => {
     const lead = filters.section ? SECTION_LABEL[filters.section] : 'All questions'
-    if (filters.skill && question?.skill_name) return `${lead}: ${question.skill_name}`
-    if (filters.domain && question?.domain_name) return `${lead}: ${question.domain_name}`
+    if (filters.skills?.length === 1 && question?.skill_name) {
+      return `${lead}: ${question.skill_name}`
+    }
+    if (filters.domains?.length === 1 && question?.domain_name) {
+      return `${lead}: ${question.domain_name}`
+    }
     return lead
   }, [filters, question?.domain_name, question?.skill_name])
 
@@ -223,14 +248,20 @@ export default function App() {
         {view === 'home' ? (
           <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
                 loading={listLoading} onChange={setFilters}
+                onReview={() => setView('review')}
                 onStart={() => { setIndex(0); setView('practice') }} />
         ) : view === 'about' ? (
           <div className="page">
             <About />
           </div>
+        ) : view === 'review' ? (
+          <div className="page">
+            <Review onPractice={practiceOne} />
+          </div>
         ) : (
           <div className="page">
             <StatsPage taxonomy={taxonomy}
+                       onReview={() => setView('review')}
                        onPractice={(next) => {
                          setFilters(next)
                          setIndex(0)
@@ -291,6 +322,14 @@ export default function App() {
             <span className={annotations.length ? 'tool-label has-count' : 'tool-label'}>
               <span className="tool-text">Highlights &amp; Notes</span>
               {annotations.length ? ` (${annotations.length})` : ''}
+            </span>
+          </button>
+          <button className={showMistake ? 'tool on' : 'tool'}
+                  onClick={() => setShowMistake((v) => !v)}>
+            <span className="tool-glyphs"><Icon name="tag" size={20} /></span>
+            <span className={mistake ? 'tool-label has-count' : 'tool-label'}>
+              <span className="tool-text">Mistake log</span>
+              {mistake ? ` (${mistake.tags.length || 1})` : ''}
             </span>
           </button>
           <div className="tool static">
@@ -366,6 +405,17 @@ export default function App() {
       {showNavigator ? (
         <Navigator items={items} current={index} title={setTitle}
                    onGo={go} onClose={() => setShowNavigator(false)} />
+      ) : null}
+
+      {showMistake && current ? (
+        <MistakeLog key={current.id}
+                    mistake={mistake}
+                    onClose={() => setShowMistake(false)}
+                    onSave={(tags, note) => {
+                      void api.saveMistake(current.id, tags, note)
+                        .then((r) => setMistake(r.mistake))
+                        .catch((e: Error) => setError(e.message))
+                    }} />
       ) : null}
 
       {showNotes ? (

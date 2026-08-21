@@ -7,7 +7,8 @@
  * how one is chosen.
  */
 import type {
-  Annotation, Filters, GradeResult, Question, SetItem, Stats, TaxonomyRow,
+  Annotation, Filters, GradeResult, Mistake, MistakeTag, Question, SetItem,
+  Stats, TaxonomyRow,
 } from './types'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -25,16 +26,45 @@ export function taxonomy() {
 }
 
 export function questionSet(filters: Filters) {
-  const query = new URLSearchParams(
-    Object.entries(filters).filter(([, v]) => v) as [string, string][],
-  )
+  // Repeated keys rather than a comma-joined string, so a value that ever
+  // contains a comma cannot split into two filters. server.py reads them all.
+  const query = new URLSearchParams()
+  if (filters.section) query.set('section', filters.section)
+  for (const d of filters.domains ?? []) query.append('domain', d)
+  for (const s of filters.skills ?? []) query.append('skill', s)
+  for (const d of filters.difficulties ?? []) query.append('difficulty', d)
+  for (const s of filters.statuses ?? []) query.append('status', s)
   return call<{ count: number; questions: SetItem[] }>(`/api/set?${query}`)
 }
 
+export function saveMistake(id: string, tags: MistakeTag[], note: string | null) {
+  return call<{ mistake: Mistake | null }>(`/api/mistake/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ tags, note }),
+  })
+}
+
+/** Every question with at least one attempt, most recently answered first. */
+export function reviewed() {
+  return call<{ count: number; questions: SetItem[] }>(
+    '/api/set?status=correct&status=wrong&order=recent')
+}
+
 export function question(id: string) {
-  return call<{ question: Question; annotations: Annotation[]; flagged: boolean }>(
+  return call<{
+    question: Question; annotations: Annotation[]; flagged: boolean
+    mistake: Mistake | null
+  }>(
     `/api/questions/${encodeURIComponent(id)}`,
   )
+}
+
+/** Re-grade a stored response for its explanation. Records nothing. */
+export function explain(id: string, response: string | null) {
+  return call<GradeResult>(`/api/questions/${encodeURIComponent(id)}/explain`, {
+    method: 'POST',
+    body: JSON.stringify({ response }),
+  })
 }
 
 export function answer(id: string, response: string | null, seconds: number) {

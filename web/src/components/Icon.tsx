@@ -6,7 +6,7 @@ type Name =
   | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'chevron-up'
   | 'bookmark' | 'highlighter' | 'more' | 'close' | 'note' | 'calculator'
   | 'grip' | 'check' | 'sliders' | 'pin' | 'trash' | 'underline' | 'arrow-right'
-  | 'split' | 'expand' | 'shrink' | 'grip-h' | 'dots9'
+  | 'split' | 'expand' | 'shrink' | 'grip-h' | 'dots9' | 'tag'
 
 const PATHS: Record<Name, string> = {
   'chevron-left': 'M15 18l-6-6 6-6',
@@ -31,6 +31,7 @@ const PATHS: Record<Name, string> = {
   shrink: 'M4 10.5l6.5-6.5M10.5 4v6.5M10.5 10.5H4M20 13.5l-6.5 6.5M13.5 20v-6.5M13.5 13.5H20',
   dots9: 'M6 6h.01M12 6h.01M18 6h.01M6 12h.01M12 12h.01M18 12h.01M6 18h.01M12 18h.01M18 18h.01',
   'grip-h': 'M5 9h14M5 15h14',
+  tag: 'M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-6.8-6.8A2 2 0 013.2 12.4V5a2 2 0 012-2h7.4a2 2 0 011.4.6l6.6 6.6a2 2 0 010 2.8zM8 8h.01',
 }
 
 interface Props {

@@ -10,7 +10,7 @@
  * Answering on Pages does not show up on localhost and vice versa. That is a
  * deliberate choice, not a bug -- see HANDOFF section 7c.
  */
-import type { Annotation, StoredQuestion } from '../types'
+import type { Annotation, MistakeTag, StoredQuestion } from '../types'
 import type { Stub } from './normalize'
 
 const DB_NAME = 'bluebank'
@@ -18,8 +18,10 @@ const DB_NAME = 'bluebank'
  * 2 added the outbox store and `updated_at` on marks and annotations, both
  * needed by cloud sync (lib/sync.ts). Bumping this runs the migration in
  * open() below; existing rows are backfilled, never dropped.
+ *
+ * 3 added the mistakes store. Nothing to backfill: absent means never logged.
  */
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 export const STORE_INDEX = 'index'        // Stub, keyed by _id
 export const STORE_QUESTIONS = 'questions' // StoredQuestion, keyed by id
@@ -28,6 +30,7 @@ export const STORE_MARKS = 'marks'         // MarkRecord, keyed by question_id
 export const STORE_ANNOTATIONS = 'annotations' // AnnotationRecord, keyed by question_id
 export const STORE_META = 'meta'           // arbitrary key/value
 export const STORE_OUTBOX = 'outbox'       // { key }, see the outbox section below
+export const STORE_MISTAKES = 'mistakes'   // MistakeRecord, keyed by question_id
 
 export interface Attempt {
   /**
@@ -74,6 +77,9 @@ function open(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_OUTBOX)) {
         db.createObjectStore(STORE_OUTBOX, { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains(STORE_MISTAKES)) {
+        db.createObjectStore(STORE_MISTAKES, { keyPath: 'question_id' })
       }
 
       // v1 -> v2: marks and annotations predate `updated_at`, which the
@@ -186,7 +192,45 @@ export const putAnnotations = (row: AnnotationRecord) => put(STORE_ANNOTATIONS, 
 // on a plane, close the tab, and they still go up next time. That is what makes
 // "did that sync?" a question the user cannot get wrong.
 
-export type OutboxKind = 'attempt' | 'mark' | 'annotation'
+export interface MistakeRecord {
+  question_id: string
+  tags: MistakeTag[]
+  note: string | null
+  updated_at: number
+}
+
+export const loadAllMistakes = () => getAll<MistakeRecord>(STORE_MISTAKES)
+export const loadMistake = (question_id: string) =>
+  get<MistakeRecord>(STORE_MISTAKES, question_id)
+
+/** Write a merged row verbatim, keeping the server's timestamp. Sync only. */
+export const putMistake = (row: MistakeRecord) => put(STORE_MISTAKES, row)
+
+/**
+ * An empty log deletes the row rather than storing blanks, so "never logged"
+ * and "logged then cleared" stay the same thing. The review page filters on
+ * presence, and a row of empties would show up as a logged mistake with nothing
+ * in it.
+ */
+export function saveMistake(
+  question_id: string, tags: MistakeTag[], note: string | null,
+): Promise<unknown> {
+  const clean = (note ?? '').trim()
+  if (!tags.length && !clean) {
+    // Tombstone rather than delete: sync is last-write-wins on updated_at, and
+    // a deleted row has no timestamp to beat the copy on the server with.
+    return put(STORE_MISTAKES,
+      { question_id, tags: [], note: null, updated_at: Date.now() })
+  }
+  return put(STORE_MISTAKES,
+    { question_id, tags, note: clean || null, updated_at: Date.now() })
+}
+
+/** A tombstone reads as "no log" everywhere above the store. */
+export const isEmptyMistake = (m: MistakeRecord | undefined): boolean =>
+  !m || (!m.tags.length && !m.note)
+
+export type OutboxKind = 'attempt' | 'mark' | 'annotation' | 'mistake'
 
 export const outboxKey = (kind: OutboxKind, id: string) => `${kind}:${id}`
 
@@ -200,7 +244,8 @@ export function parseOutboxKey(key: string): { kind: OutboxKind; id: string } | 
   const cut = key.indexOf(':')
   if (cut < 1 || cut === key.length - 1) return null
   const kind = key.slice(0, cut)
-  if (kind !== 'attempt' && kind !== 'mark' && kind !== 'annotation') return null
+  if (kind !== 'attempt' && kind !== 'mark' && kind !== 'annotation'
+      && kind !== 'mistake') return null
   return { kind, id: key.slice(cut + 1) }
 }
 

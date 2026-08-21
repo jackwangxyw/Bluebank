@@ -7,4 +7,6 @@ CREATE TABLE IF NOT EXISTS marks (sub TEXT NOT NULL, question_id TEXT NOT NULL, 
 CREATE INDEX IF NOT EXISTS idx_marks_seq ON marks(sub, seq);
 CREATE TABLE IF NOT EXISTS annotations (sub TEXT NOT NULL, question_id TEXT NOT NULL, items_json TEXT NOT NULL, updated_at INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (sub, question_id));
 CREATE INDEX IF NOT EXISTS idx_annotations_seq ON annotations(sub, seq);
+CREATE TABLE IF NOT EXISTS mistakes (sub TEXT NOT NULL, question_id TEXT NOT NULL, tags_json TEXT NOT NULL, note TEXT, updated_at INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (sub, question_id));
+CREATE INDEX IF NOT EXISTS idx_mistakes_seq ON mistakes(sub, seq);
 CREATE TABLE IF NOT EXISTS cursors (sub TEXT PRIMARY KEY, seq INTEGER NOT NULL DEFAULT 0);

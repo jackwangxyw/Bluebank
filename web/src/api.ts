@@ -42,6 +42,9 @@ export const question = impl.question
 export const answer = impl.answer
 export const flag = impl.flag
 export const saveAnnotations = impl.saveAnnotations
+export const explain = impl.explain
+export const saveMistake = impl.saveMistake
+export const reviewed = impl.reviewed
 export const stats = impl.stats
 
 /**

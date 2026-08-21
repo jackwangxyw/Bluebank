@@ -6,14 +6,20 @@ interface Props {
   result: GradeResult
   question: Question
   seconds: number
+  /**
+   * Start expanded. Practice keeps it collapsed behind the verdict so you get
+   * the result before the reasoning; Review is the opposite, you came here to
+   * read the reasoning.
+   */
+  startOpen?: boolean
 }
 
 /**
  * Post-answer review. Every word here is College Board's own rationale text;
  * nothing is generated.
  */
-export function Explanation({ result, question, seconds }: Props) {
-  const [open, setOpen] = useState(false)
+export function Explanation({ result, question, seconds, startOpen = false }: Props) {
+  const [open, setOpen] = useState(startOpen)
   const isMcq = question.type === 'mcq'
 
   if (!open) {

@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE INDEX IF NOT EXISTS idx_an_question ON annotations(question_id);
 
 -- "Mark for Review" flag, one row per question.
+-- Why you got a question wrong, in your own words. Tags plus a note, one row
+-- per question. Same shape as marks on purpose: keyed by question, no history,
+-- last write wins, which is what makes it cheap to sync.
+CREATE TABLE IF NOT EXISTS mistakes (
+  question_id TEXT PRIMARY KEY REFERENCES questions(id),
+  tags_json   TEXT NOT NULL DEFAULT '[]',   -- ["silly","knowledge"]
+  note        TEXT,
+  updated_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS marks (
   question_id TEXT PRIMARY KEY REFERENCES questions(id),
   flagged     INTEGER NOT NULL DEFAULT 0,

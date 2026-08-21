@@ -10,6 +10,7 @@ interface Props {
   loading: boolean
   onChange: (next: Filters) => void
   onStart: () => void
+  onReview: () => void
 }
 
 /** 'ALL' is a real choice, distinct from having chosen nothing yet. */
@@ -46,7 +47,9 @@ interface DomainRow {
   seen: number
 }
 
-export function Home({ taxonomy, stats, value, count, loading, onChange, onStart }: Props) {
+export function Home({
+  taxonomy, stats, value, count, loading, onChange, onStart, onReview,
+}: Props) {
   /**
    * Which section card is chosen, held locally because the filter cannot say
    * it: `section: undefined` means "every question", which is what the
@@ -73,18 +76,23 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
     )
   }, [taxonomy, value.section])
 
+  /** Skills for every selected domain, tagged so they can be pruned later. */
   const skills = useMemo(() => {
-    if (!value.domain) return []
-    const map = new Map<string, { code: string; name: string; n: number; seen: number }>()
+    const chosen = value.domains ?? []
+    if (!chosen.length) return []
+    const map = new Map<string, {
+      code: string; name: string; domain: string; n: number; seen: number
+    }>()
     for (const row of taxonomy) {
-      if (row.domain !== value.domain) continue
-      const entry = map.get(row.skill) ?? { code: row.skill, name: row.skill_name, n: 0, seen: 0 }
+      if (!chosen.includes(row.domain)) continue
+      const entry = map.get(row.skill)
+        ?? { code: row.skill, name: row.skill_name, domain: row.domain, n: 0, seen: 0 }
       entry.n += row.n
       entry.seen += row.seen
       map.set(row.skill, entry)
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [taxonomy, value.domain])
+  }, [taxonomy, value.domains])
 
   const totals = useMemo(() => {
     const out = {
@@ -105,6 +113,34 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
   }, [taxonomy])
 
   function set(patch: Partial<Filters>) { onChange({ ...value, ...patch }) }
+
+  /**
+   * Add or remove one value from a filter list.
+   *
+   * Returns undefined rather than [] when the last value comes out, because
+   * "no filter" and "an empty filter" have to be the same thing: an empty array
+   * would otherwise read as "match nothing" and the All chip would not light up.
+   */
+  function toggle<T>(list: T[] | undefined, item: T): T[] | undefined {
+    const next = list?.includes(item)
+      ? list.filter((x) => x !== item)
+      : [...(list ?? []), item]
+    return next.length ? next : undefined
+  }
+
+  /**
+   * Turning a domain off has to take its skills with it. Leaving them behind
+   * gives you a filter for a skill you can no longer see a chip for, and the
+   * set silently comes back empty.
+   */
+  function toggleDomain(code: string) {
+    const domains = toggle(value.domains, code)
+    const stillVisible = new Set(
+      taxonomy.filter((r) => (domains ?? []).includes(r.domain)).map((r) => r.skill),
+    )
+    const kept = (value.skills ?? []).filter((s) => stillVisible.has(s))
+    set({ domains, skills: kept.length ? kept : undefined })
+  }
 
   /** Clicking the chosen card again clears everything and collapses the page. */
   function choose(next: Exclude<Picked, null>) {
@@ -166,6 +202,20 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
               </span>
             </div>
           ) : null}
+
+          {/* Only once there is something to look back at. */}
+          {stats && stats.attempts > 0 ? (
+            <button className="reviewcard" onClick={onReview}>
+              <span className="reviewcard-main">
+                <span className="reviewcard-t">Review what you've done</span>
+                <span className="reviewcard-b">
+                  Every question you've answered, with your answer, the
+                  explanation and how long it took.
+                </span>
+              </span>
+              <Icon name="arrow-right" size={18} strokeWidth={2.2} />
+            </button>
+          ) : null}
         </header>
 
         <section className="pick">
@@ -209,8 +259,8 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             <div className="row">
               <h2 className="label">Domain</h2>
               <div className="chips">
-                <button className={!value.domain ? 'chip on' : 'chip'}
-                        onClick={() => set({ domain: undefined, skill: undefined })}>
+                <button className={!value.domains?.length ? 'chip on' : 'chip'}
+                        onClick={() => set({ domains: undefined, skills: undefined })}>
                   All
                 </button>
                 {domains.map((d, i) => (
@@ -222,8 +272,9 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
                         <span className="brk" />
                       </>
                     ) : null}
-                    <button className={value.domain === d.code ? 'chip on' : 'chip'}
-                            onClick={() => set({ domain: d.code, skill: undefined })}>
+                    <button className={value.domains?.includes(d.code) ? 'chip on' : 'chip'}
+                            aria-pressed={value.domains?.includes(d.code) ?? false}
+                            onClick={() => toggleDomain(d.code)}>
                       {d.name}
                       <span className="chip-n">{d.n}</span>
                       <span className="chip-meter"
@@ -234,18 +285,19 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
               </div>
             </div>
 
-            {value.domain ? (
+            {value.domains?.length ? (
               <div className="row">
                 <h2 className="label">Skill</h2>
                 <div className="chips">
-                  <button className={!value.skill ? 'chip on' : 'chip'}
-                          onClick={() => set({ skill: undefined })}>
+                  <button className={!value.skills?.length ? 'chip on' : 'chip'}
+                          onClick={() => set({ skills: undefined })}>
                     All
                   </button>
                   {skills.map((s) => (
                     <button key={s.code}
-                            className={value.skill === s.code ? 'chip on' : 'chip'}
-                            onClick={() => set({ skill: s.code })}>
+                            className={value.skills?.includes(s.code) ? 'chip on' : 'chip'}
+                            aria-pressed={value.skills?.includes(s.code) ?? false}
+                            onClick={() => set({ skills: toggle(value.skills, s.code) })}>
                       {s.name}
                       <span className="chip-n">{s.n}</span>
                       <span className="chip-meter"
@@ -259,12 +311,15 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             <div className="row">
               <h2 className="label">Difficulty</h2>
               <div className="chips">
-                <button className={!value.difficulty ? 'chip on' : 'chip'}
-                        onClick={() => set({ difficulty: undefined })}>Any</button>
+                <button className={!value.difficulties?.length ? 'chip on' : 'chip'}
+                        onClick={() => set({ difficulties: undefined })}>Any</button>
                 {DIFFICULTIES.map((d) => (
                   <button key={d.key}
-                          className={value.difficulty === d.key ? 'chip on' : 'chip'}
-                          onClick={() => set({ difficulty: d.key })}>{d.label}</button>
+                          className={value.difficulties?.includes(d.key) ? 'chip on' : 'chip'}
+                          aria-pressed={value.difficulties?.includes(d.key) ?? false}
+                          onClick={() => set({ difficulties: toggle(value.difficulties, d.key) })}>
+                    {d.label}
+                  </button>
                 ))}
               </div>
             </div>
@@ -272,12 +327,15 @@ export function Home({ taxonomy, stats, value, count, loading, onChange, onStart
             <div className="row">
               <h2 className="label">History</h2>
               <div className="chips">
-                <button className={!value.status ? 'chip on' : 'chip'}
-                        onClick={() => set({ status: undefined })}>Any</button>
+                <button className={!value.statuses?.length ? 'chip on' : 'chip'}
+                        onClick={() => set({ statuses: undefined })}>Any</button>
                 {STATUSES.map((s) => (
                   <button key={s.key}
-                          className={value.status === s.key ? 'chip on' : 'chip'}
-                          onClick={() => set({ status: s.key })}>{s.label}</button>
+                          className={value.statuses?.includes(s.key) ? 'chip on' : 'chip'}
+                          aria-pressed={value.statuses?.includes(s.key) ?? false}
+                          onClick={() => set({ statuses: toggle(value.statuses, s.key) })}>
+                    {s.label}
+                  </button>
                 ))}
               </div>
             </div>

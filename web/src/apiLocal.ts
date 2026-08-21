@@ -29,7 +29,8 @@ import * as cb from './lib/cbApi'
 import * as store from './lib/store'
 import * as sync from './lib/sync'
 import type {
-  Annotation, Filters, GradeResult, Question, SetItem, Stats, StoredQuestion, TaxonomyRow,
+  Annotation, Filters, GradeResult, Mistake, MistakeTag, Question, SetItem,
+  Stats, StoredQuestion, TaxonomyRow,
 } from './types'
 
 /** How many questions ahead to warm the cache while you read the current one. */
@@ -164,16 +165,25 @@ function lastAttempt(c: Cache, id: string): store.Attempt | null {
   return list?.length ? list[list.length - 1] : null
 }
 
+/** OR within a filter, AND between filters. An empty list is not a filter. */
+export const anyOf = <T,>(list: T[] | undefined, value: T | undefined): boolean =>
+  !list?.length || (value !== undefined && list.includes(value))
+
 function matches(stub: Stub, c: Cache, f: Filters): boolean {
   if (f.section && stub._section !== f.section) return false
-  if (f.domain && stub.primary_class_cd !== f.domain) return false
-  if (f.skill && stub.skill_cd !== f.skill) return false
-  if (f.difficulty && stub.difficulty !== f.difficulty) return false
-  const last = lastAttempt(c, stub._id)
-  if (f.status === 'unseen') return !last
-  if (f.status === 'wrong') return last?.correct === 0
-  if (f.status === 'correct') return last?.correct === 1
-  if (f.status === 'flagged') return c.flagged.has(stub._id)
+  if (!anyOf(f.domains, stub.primary_class_cd)) return false
+  if (!anyOf(f.skills, stub.skill_cd)) return false
+  if (!anyOf(f.difficulties, stub.difficulty)) return false
+
+  if (f.statuses?.length) {
+    const last = lastAttempt(c, stub._id)
+    const hit = f.statuses.some((s) => (
+      s === 'unseen' ? !last
+        : s === 'wrong' ? last?.correct === 0
+          : s === 'correct' ? last?.correct === 1
+            : c.flagged.has(stub._id)))
+    if (!hit) return false
+  }
   return true
 }
 
@@ -240,8 +250,10 @@ export async function questionSet(filters: Filters):
   return { count: questions.length, questions }
 }
 
-export async function question(id: string):
-    Promise<{ question: Question; annotations: Annotation[]; flagged: boolean }> {
+export async function question(id: string): Promise<{
+  question: Question; annotations: Annotation[]; flagged: boolean
+  mistake: Mistake | null
+}> {
   const c = await boot()
   const full = await loadFull(id)
 
@@ -251,11 +263,43 @@ export async function question(id: string):
   }
 
   const saved = await store.loadAnnotations(id)
+  const logged = await store.loadMistake(id)
   return {
     question: strip(full),
     annotations: saved?.items ?? [],
     flagged: c.flagged.has(id),
+    mistake: store.isEmptyMistake(logged) ? null : {
+      tags: logged!.tags, note: logged!.note, updated_at: logged!.updated_at,
+    },
   }
+}
+
+export async function saveMistake(
+  id: string, tags: MistakeTag[], note: string | null,
+): Promise<{ mistake: Mistake | null }> {
+  await store.saveMistake(id, tags, note)
+  sync.track('mistake', id)
+  const saved = await store.loadMistake(id)
+  return {
+    mistake: store.isEmptyMistake(saved) ? null : {
+      tags: saved!.tags, note: saved!.note, updated_at: saved!.updated_at,
+    },
+  }
+}
+
+/** Every question with at least one attempt, most recently answered first. */
+export async function reviewed(): Promise<{ questions: SetItem[] }> {
+  const c = await boot()
+  const questions = c.stubs
+    .filter((stub) => Boolean(lastAttempt(c, stub._id)))
+    .map((stub) => toSetItem(stub, c))
+    .sort((a, b) => (b.answered_at ?? 0) - (a.answered_at ?? 0))
+  return { questions }
+}
+
+/** Re-grade a stored response for its explanation. Records nothing. */
+export async function explain(id: string, response: string | null): Promise<GradeResult> {
+  return grade(await loadFull(id), response)
 }
 
 export async function answer(

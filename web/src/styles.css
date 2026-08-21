@@ -1202,3 +1202,81 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   text-decoration: none !important;
   pointer-events: none;
 }
+
+/* ---- mistake log ---- */
+.mlog { padding: 18px 20px 28px; overflow-y: auto; }
+.mlog-lead { margin: 0 0 12px; font-size: 14px; color: var(--ink-2); }
+.mlog-hints {
+  list-style: none; margin: 14px 0 22px; padding: 12px 14px;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.mlog-hints li { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.mlog-hints strong { color: var(--ink-2); font-weight: 650; }
+.mlog-label {
+  display: block; margin-bottom: 6px;
+  font-size: 13px; font-weight: 650; color: var(--ink-2);
+}
+.mlog-note {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  font: inherit; font-size: 14px; line-height: 1.5; color: var(--ink);
+}
+.mlog-note:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.mlog-fine { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ---- review ---- */
+.reviewcard {
+  display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 26px;
+  padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--bg); cursor: pointer; text-align: left; color: var(--ink);
+}
+.reviewcard:hover { border-color: var(--line-2); background: var(--bg-soft); }
+.reviewcard-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.reviewcard-t { font-size: 15px; font-weight: 650; }
+.reviewcard-b { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+
+.review { max-width: 860px; margin: 0 auto; padding: 40px 32px 80px; }
+.review-sub { margin: 0 0 26px; font-size: 14px; color: var(--muted); }
+.review-empty { margin: 20px 0; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+.review-list { list-style: none; margin: 0; padding: 0; }
+.review-item { border-bottom: 1px solid var(--line); }
+.review-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px 2px; border: none; background: none; cursor: pointer;
+  text-align: left; color: var(--ink);
+}
+.review-row:hover { background: var(--bg-soft); }
+.review-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.review-dot.right { background: var(--green); }
+.review-dot.wrong { background: var(--red); }
+.review-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.review-skill { font-size: 14.5px; font-weight: 600; }
+.review-meta { font-size: 12.5px; color: var(--muted); }
+.review-time {
+  flex: none; font-size: 13px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.review-detail { padding: 4px 2px 26px; }
+.review-passage, .review-stem {
+  font-family: var(--serif); font-size: 16px; line-height: 1.6; margin-bottom: 14px;
+}
+.review-facts {
+  display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0;
+  padding: 12px 14px; background: var(--bg-soft);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  font-size: 13.5px; color: var(--ink-2);
+}
+.review-facts strong { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.review-mistake { margin: 14px 0; }
+.review-note {
+  margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--line-2);
+  font-size: 13.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap;
+}
+.review-anns { margin: 12px 0; font-size: 12.5px; color: var(--muted); }
+.chip.static { cursor: default; }
+
+@media (max-width: 819px) {
+  .review { padding: 28px 16px 60px; }
+  .reviewcard { padding: 14px; }
+}

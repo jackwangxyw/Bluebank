@@ -5,6 +5,7 @@ import type { Filters, Section, TaxonomyRow } from '../types'
 interface Props {
   taxonomy: TaxonomyRow[]
   onPractice: (filters: Filters) => void
+  onReview: () => void
 }
 
 /**
@@ -59,7 +60,7 @@ function Bar({ value, total, title }: { value: number; total: number; title?: st
   )
 }
 
-export function Stats({ taxonomy, onPractice }: Props) {
+export function Stats({ taxonomy, onPractice, onReview }: Props) {
   const model = useMemo(() => {
     const overall = empty()
     const sections = new Map<Section, Tally>()
@@ -163,6 +164,17 @@ export function Stats({ taxonomy, onPractice }: Props) {
         </div>
       </section>
 
+      <button className="reviewcard" onClick={onReview}>
+        <span className="reviewcard-main">
+          <span className="reviewcard-t">Review what you've done</span>
+          <span className="reviewcard-b">
+            Every question you've answered, with your answer, the explanation
+            and how long it took.
+          </span>
+        </span>
+        <Icon name="arrow-right" size={18} strokeWidth={2.2} />
+      </button>
+
       <section className="block">
         <div className="block-head">
           <h2 className="h">Where to focus</h2>
@@ -179,7 +191,7 @@ export function Stats({ taxonomy, onPractice }: Props) {
                      title={`${k.correct} of ${k.seen} correct`} />
                 <Accuracy t={k} />
                 <button className="btn small"
-                        onClick={() => onPractice({ section: k.section, domain: k.domain, skill: k.code })}>
+                        onClick={() => onPractice({ section: k.section, domains: [k.domain], skills: [k.code] })}>
                   Practice
                 </button>
               </li>
@@ -201,7 +213,7 @@ export function Stats({ taxonomy, onPractice }: Props) {
                   <Bar value={0} total={k.n} title={`${k.n} unseen`} />
                   <span className="acc none">{k.n.toLocaleString()}</span>
                   <button className="btn small"
-                          onClick={() => onPractice({ section: k.section, domain: k.domain, skill: k.code })}>
+                          onClick={() => onPractice({ section: k.section, domains: [k.domain], skills: [k.code] })}>
                     Practice
                   </button>
                 </li>
@@ -288,7 +300,7 @@ export function Stats({ taxonomy, onPractice }: Props) {
                     {skillsFor(section, d.code).map((k) => (
                       <li key={k.code} className="row-item is-skill">
                         <button className="row-name link"
-                                onClick={() => onPractice({ section, domain: d.code, skill: k.code })}
+                                onClick={() => onPractice({ section, domains: [d.code], skills: [k.code] })}
                                 title={`Practice ${k.name}`}>
                           {k.name}
                           <Icon name="arrow-right" size={13} strokeWidth={2.2} />

@@ -5,17 +5,23 @@ This is a simple and modern UI for the official College Board SAT question bank.
 ![Practice view](Images/practice.png)
 
 ## The App
-The UI is built based off of Bluebook so you can practice questions in an interface that looks like what you see on test day. Split pane with a draggable divider for reading and writing, figures inline above the question for math. Highlighting and notes, cross out, a question navigator, and the Desmos calculator on math questions.
+The UI is built based off of Bluebook, the app you actually take the test in, so the interface isn't new to you on test day. Reading and writing questions put the passage on one side and the question on the other, with a divider you can drag. Math questions put the figure above the question.
 
-Mobile has it's own layout that keeps the aesthetic but keeps it easy to use on a smaller device. Questions are laid out vertically instead of being split down the middle. 
+You get highlighting and notes, answer cross out, and a navigator showing which questions you've done, which you got wrong, and which you marked to come back to. Math questions come with the Desmos calculator, in the same restricted version College Board gives you, so you're practicing with the tools you'll actually have on the day.
 
-The calculator runs in Desmos's restricted testing mode, which is their `restrictedFunctions` option, similar to College Board's version. Functions and behavior are essentially identical with the real thing so you can practice with the tools available to you on the real SAT.
+Every question is marked the moment you answer it. Multiple choice questions come with College Board's own explanation of why each choice is right or wrong, not just which one was correct, which is usually the more useful half.
 
-MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Noto is self hosted in [web/src/fonts](web/src/fonts) rather than loaded from Google, since a font CDN sees the IP of every visitor whether or not they ever sign in. Desmos loads from their CDN the first time you open the calculator, and nothing else in the app needs the network once it's built.
+The stats page breaks down what you've covered and where you're getting things wrong, by section, domain and skill, so you can aim your practice instead of guessing.
+
+Mobile has its own layout that keeps the aesthetic but is easy to use on a smaller device. Questions are laid out vertically instead of being split down the middle.
+
+Once a question has loaded, everything except the calculator keeps working with no connection.
 
 The app does have a google login for syncing your data across devices, but this is strictly NOT needed for normal use. There's more information on our privacy and data collection on the about page of the site itself.
 
 ## Quick Start for Self Hosting
+Everything from here down is for running your own copy. If you just want to use the site, you're done.
+
 You need Python 3.9 or newer and Node. The build takes about five minutes, almost all of it downloading question bodies at 12.8 requests a second.
 
 ```
@@ -50,18 +56,14 @@ The two don't share progress. Answering on one doesn't show up on the other, and
 
 The static build depends on College Board sending `Access-Control-Allow-Origin: *`, which they currently do on all three endpoints. That header is theirs to change and if they tighten it the static build stops working in a browser while the Python one keeps going, since a server ignores CORS. That's most of the reason both still exist.
 
-## Sync
-Optional, and off unless you ask for it. Without an account nothing about you leaves the browser, and Google's sign-in script isn't even downloaded until you open the panel.
+## Running Your Own Sync Server
+Skip this unless you want sync on your own deployment. Leave `VITE_SYNC_API` and `VITE_GOOGLE_CLIENT_ID` blank in [web/.env.pages](web/.env.pages) and the account UI doesn't render at all, which is also the rollback.
 
-Signing in carries your attempts, highlights, notes and marks between devices. The only identifier stored is the opaque account id Google hands over, so there's no email, no name and no picture anywhere in the database. The panel has a delete button that wipes everything server side and leaves your local history alone.
-
-Attempts merge by union on a uuid, which means a sync that fails, runs twice, or arrives out of order can't lose or duplicate anything. Marks and annotations are last write wins per question, decided on the server so a device with a wrong clock can't stomp newer data.
-
-The server is one Cloudflare Worker over a D1 database, in [worker/](worker). 
-
-To run your own, create a D1 database, paste [worker/schema.sql](worker/schema.sql) into its console, paste [worker/src/index.js](worker/src/index.js) into a worker, bind the database as `DB`, and set `GOOGLE_CLIENT_ID` to an OAuth client id. Then put the worker URL and that same client id into [web/.env.pages](web/.env.pages). Leave those two blank and the account UI doesn't render at all, which is also the rollback.
+The server is one Cloudflare Worker over a D1 database, in [worker/](worker). Create a D1 database, paste [worker/schema.sql](worker/schema.sql) into its console, paste [worker/src/index.js](worker/src/index.js) into a worker, bind the database as `DB`, and set `GOOGLE_CLIENT_ID` to an OAuth client id. Then put the worker URL and that same client id into `.env.pages`.
 
 `GET /health` on the worker reports which bindings actually landed. Check it first if sign-in fails, because setting a binding in the dashboard without deploying leaves it missing at runtime and nothing else tells you.
+
+Attempts merge by union on a uuid, which means a sync that fails, runs twice, or arrives out of order can't lose or duplicate anything. Marks and annotations are last write wins per question, decided on the server so a device with a wrong clock can't stomp newer data.
 
 ## Commands
 | Command | What it does |
@@ -109,6 +111,11 @@ GET  https://saic.collegeboard.org/disclosed/{ibn}.json
 Math domains are `H,P,Q,S`. Difficulty is E/M/H, but there's also `score_band_range_cd`, which runs 1 to 7 and is finer, so use that one if you ever build adaptive logic on top of this.
 
 The whole index is those first two calls and takes 1.7 seconds. The individual bodies are what take five minutes.
+
+## Vendored Assets
+MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Noto is self hosted in [web/src/fonts](web/src/fonts) rather than loaded from Google, since a font CDN sees the IP of every visitor whether or not they ever sign in.
+
+Desmos is the exception and loads from their CDN the first time you open the calculator. It runs in their restricted testing mode, the `restrictedFunctions` option, which is what College Board uses. Nothing else in the app needs the network once it's built.
 
 ## Explanations
 Each rationale arrives as one HTML blob covering all four choices, and [bluebank/rationale.py](bluebank/rationale.py) splits it into a piece per choice. It cuts the HTML rather than flattened text, so MathML and inline SVG survive, and each piece gets rebalanced because the cuts land in the middle of a paragraph.

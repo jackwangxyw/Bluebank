@@ -73,6 +73,49 @@ def submit(conn, question_id, response, seconds=None, record=True):
     return result
 
 
+# The tags the UI offers. Anything else is dropped rather than stored, so a
+# stale client cannot invent categories the review page has no label for.
+MISTAKE_TAGS = ("process", "silly", "knowledge", "other")
+
+
+def get_mistake(conn, question_id):
+    """The mistake log for one question, or None if nothing was ever written."""
+    row = conn.execute(
+        "SELECT tags_json, note, updated_at FROM mistakes WHERE question_id = ?",
+        (question_id,)).fetchone()
+    if not row:
+        return None
+    return {
+        "tags": json.loads(row["tags_json"]),
+        "note": row["note"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def set_mistake(conn, question_id, tags=None, note=None):
+    """Write the log for one question. Empty tags and no note deletes the row.
+
+    Deleting rather than storing a blank keeps "never logged" and "logged then
+    cleared" the same thing, which is what the review page filters on.
+    """
+    tags = [t for t in (tags or []) if t in MISTAKE_TAGS]
+    note = (note or "").strip() or None
+    if not tags and not note:
+        conn.execute("DELETE FROM mistakes WHERE question_id = ?", (question_id,))
+        conn.commit()
+        return None
+
+    conn.execute(
+        "INSERT INTO mistakes (question_id, tags_json, note, updated_at)"
+        " VALUES (?,?,?,?)"
+        " ON CONFLICT(question_id) DO UPDATE SET"
+        "   tags_json = excluded.tags_json, note = excluded.note,"
+        "   updated_at = excluded.updated_at",
+        (question_id, json.dumps(tags), note, int(time.time())))
+    conn.commit()
+    return get_mistake(conn, question_id)
+
+
 PUBLIC_HIDDEN = ("correct", "explanations", "rationale_html")
 
 
@@ -85,23 +128,45 @@ def public_question(question):
     return {k: v for k, v in question.items() if k not in PUBLIC_HIDDEN}
 
 
-def _filter_sql(section=None, domain=None, skill=None, difficulty=None,
-                status=None):
+# What each status means as a SQL predicate. Kept as a dict so several can be
+# OR'd together without four more branches.
+_STATUS_SQL = {
+    "unseen": "last.question_id IS NULL",
+    "wrong": "last.correct = 0",
+    "correct": "last.correct = 1",
+    "flagged": "m.flagged = 1",
+}
+
+
+def _filter_sql(section=None, domains=None, skills=None, difficulties=None,
+                statuses=None):
+    """WHERE clause for the practice-set filters.
+
+    Values within one filter are OR'd (medium OR hard), and the filters are
+    AND'd with each other. An empty or missing list means that filter is off,
+    NOT that nothing matches.
+
+    `section` is a single value: it is the mode chosen on the way in, and
+    "Everything" is expressed by leaving it out.
+    """
     where = ["q.retired = 0"]
     params = []
-    for column, value in (("section", section), ("domain", domain),
-                          ("skill", skill), ("difficulty", difficulty)):
-        if value:
-            where.append(f"q.{column} = ?")
-            params.append(value)
-    if status == "unseen":
-        where.append("last.question_id IS NULL")
-    elif status == "wrong":
-        where.append("last.correct = 0")
-    elif status == "correct":
-        where.append("last.correct = 1")
-    elif status == "flagged":
-        where.append("m.flagged = 1")
+
+    if section:
+        where.append("q.section = ?")
+        params.append(section)
+
+    for column, values in (("domain", domains), ("skill", skills),
+                           ("difficulty", difficulties)):
+        values = [v for v in (values or []) if v]
+        if values:
+            where.append(f"q.{column} IN ({','.join('?' * len(values))})")
+            params.extend(values)
+
+    predicates = [_STATUS_SQL[s] for s in (statuses or []) if s in _STATUS_SQL]
+    if predicates:
+        where.append("(" + " OR ".join(predicates) + ")")
+
     return " AND ".join(where), params
 
 
@@ -118,20 +183,23 @@ _LAST_ATTEMPT = """
 """
 
 
-def question_set(conn, section=None, domain=None, skill=None, difficulty=None,
-                 status=None, order="shuffled"):
+def question_set(conn, section=None, domains=None, skills=None,
+                 difficulties=None, statuses=None, order="shuffled"):
     """The ordered working set the navigator paginates over.
 
     Returns one lightweight row per question: enough to draw the navigator grid
     without shipping 3,767 question bodies.
     """
-    where, params = _filter_sql(section, domain, skill, difficulty, status)
+    where, params = _filter_sql(section, domains, skills, difficulties, statuses)
     ordering = {
         # Default. Mixes the sections and difficulties together, but the same
         # pool always comes back in the same order, so question numbers mean
         # something across sessions. See db.shuffle_key.
         "shuffled": "shuffle_key(q.id)",
         "natural": "q.section, q.domain, q.skill, q.difficulty, q.id",
+        # Review page: most recently answered first. Questions never answered
+        # sort last, since NULL is treated as the smallest value by DESC.
+        "recent": "last.answered_at DESC, q.id",
         "difficulty": "q.band, q.section, q.domain, q.id",
         "id": "q.id",
     }.get(order, "shuffle_key(q.id)")

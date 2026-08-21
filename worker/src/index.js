@@ -204,6 +204,26 @@ function cleanMarks(raw) {
 }
 
 /** @param {unknown} raw */
+function cleanMistakes(raw) {
+  if (!Array.isArray(raw)) return []
+  const allowed = ['process', 'silly', 'knowledge', 'other']
+  const out = []
+  for (const r of raw.slice(0, MAX_ITEMS_PER_REQUEST)) {
+    if (!r || !isStr(r.question_id) || !isInt(r.updated_at)) continue
+    // Drop unknown tags rather than storing them. A stale client cannot invent
+    // a category the review page has no label for.
+    const tags = Array.isArray(r.tags) ? r.tags.filter((t) => allowed.includes(t)) : []
+    out.push({
+      question_id: r.question_id,
+      tags,
+      note: typeof r.note === 'string' ? r.note.slice(0, 4000) : null,
+      updated_at: Math.trunc(r.updated_at),
+    })
+  }
+  return out
+}
+
+/** @param {unknown} raw */
 function cleanAnnotations(raw) {
   if (!Array.isArray(raw)) return []
   const out = []
@@ -280,6 +300,7 @@ async function handleSync(request, env, origin) {
   const attempts = cleanAttempts(body.attempts)
   const marks = cleanMarks(body.marks)
   const annotations = cleanAnnotations(body.annotations)
+  const mistakes = cleanMistakes(body.mistakes)
 
   if (attempts.length) {
     const count = await env.DB.prepare(
@@ -332,12 +353,23 @@ async function handleSync(request, env, origin) {
     ).bind(sub, n.question_id, JSON.stringify(n.items), n.updated_at, seq))
   }
 
+  for (const m of mistakes) {
+    writes.push(env.DB.prepare(
+      'INSERT INTO mistakes (sub, question_id, tags_json, note, updated_at, seq)'
+      + ' VALUES (?,?,?,?,?,?)'
+      + ' ON CONFLICT(sub, question_id) DO UPDATE SET'
+      + '   tags_json = excluded.tags_json, note = excluded.note,'
+      + '   updated_at = excluded.updated_at, seq = excluded.seq'
+      + ' WHERE excluded.updated_at > mistakes.updated_at',
+    ).bind(sub, m.question_id, JSON.stringify(m.tags), m.note, m.updated_at, seq))
+  }
+
   if (writes.length) await env.DB.batch(writes)
 
   // Deliberately returns the caller's own writes back to it. For the two LWW
   // stores that is how the client learns what the server actually decided, so a
   // rejected update self-corrects on the same round trip.
-  const [outAttempts, outMarks, outAnnotations] = await env.DB.batch([
+  const [outAttempts, outMarks, outAnnotations, outMistakes] = await env.DB.batch([
     env.DB.prepare(
       'SELECT id, question_id, answered_at, response, correct, seconds'
       + ' FROM attempts WHERE sub = ? AND seq > ?').bind(sub, since),
@@ -346,6 +378,9 @@ async function handleSync(request, env, origin) {
     ).bind(sub, since),
     env.DB.prepare(
       'SELECT question_id, items_json, updated_at FROM annotations WHERE sub = ? AND seq > ?',
+    ).bind(sub, since),
+    env.DB.prepare(
+      'SELECT question_id, tags_json, note, updated_at FROM mistakes WHERE sub = ? AND seq > ?',
     ).bind(sub, since),
   ])
 
@@ -359,6 +394,13 @@ async function handleSync(request, env, origin) {
       // ever corrupted, drop that question's highlights rather than 500 the sync.
       try { items = JSON.parse(row.items_json) } catch { items = [] }
       return { question_id: row.question_id, items, updated_at: row.updated_at }
+    }),
+    mistakes: (outMistakes.results || []).map((row) => {
+      let tags = []
+      try { tags = JSON.parse(row.tags_json) } catch { tags = [] }
+      return {
+        question_id: row.question_id, tags, note: row.note, updated_at: row.updated_at,
+      }
     }),
   }, 200, origin)
 }
@@ -396,6 +438,7 @@ async function handleDelete(request, env, origin) {
     env.DB.prepare('DELETE FROM attempts    WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM marks       WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM annotations WHERE sub = ?').bind(sub),
+    env.DB.prepare('DELETE FROM mistakes    WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM cursors     WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM sessions    WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM users       WHERE sub = ?').bind(sub),

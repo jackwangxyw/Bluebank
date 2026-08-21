@@ -25,6 +25,22 @@ export interface Question {
   source_path: string
 }
 
+/**
+ * Why you got a question wrong, in your own words.
+ *
+ * `process` is a method slip, `silly` an execution slip, `knowledge` a gap, and
+ * `other` the escape hatch. Tags are a list because a question is often two of
+ * them at once.
+ */
+export const MISTAKE_TAGS = ['process', 'silly', 'knowledge', 'other'] as const
+export type MistakeTag = (typeof MISTAKE_TAGS)[number]
+
+export interface Mistake {
+  tags: MistakeTag[]
+  note: string | null
+  updated_at: number
+}
+
 /** One row of the working set, enough to draw the navigator. */
 export interface SetItem {
   id: string
@@ -100,10 +116,22 @@ export interface Stats {
   by_domain: { domain: string; domain_name: string; n: number; c: number }[]
 }
 
+export type Status = 'unseen' | 'wrong' | 'correct' | 'flagged'
+
+/**
+ * Everything except `section` is a list, and an empty list means "no filter"
+ * rather than "nothing matches". Within a row the values are OR'd (medium OR
+ * hard); across rows they are AND'd (reading AND (medium OR hard)).
+ *
+ * `section` stays single because it is the mode you pick on the way in, and
+ * "Everything" already covers both.
+ *
+ * Undefined rather than [] when empty, so the "All" chip has one thing to test.
+ */
 export interface Filters {
   section?: Section
-  domain?: string
-  skill?: string
-  difficulty?: Difficulty
-  status?: 'unseen' | 'wrong' | 'correct' | 'flagged'
+  domains?: string[]
+  skills?: string[]
+  difficulties?: Difficulty[]
+  statuses?: Status[]
 }

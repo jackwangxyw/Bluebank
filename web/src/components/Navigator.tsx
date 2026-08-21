@@ -36,9 +36,9 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
 
         <div className="nav-legend">
           <span><i className="key key-unanswered" /> Unanswered</span>
-          <span><i className="key key-first" /> Right first try</span>
-          <span><i className="key key-retry" /> Right after retry</span>
-          <span><i className="key key-wrong" /> Wrong</span>
+          <span><i className="key key-first" /> Correct first try</span>
+          <span><i className="key key-retry" /> Correct after retry</span>
+          <span><i className="key key-wrong" /> Incorrect</span>
           <span><i className="key key-marked" /> Marked</span>
         </div>
 

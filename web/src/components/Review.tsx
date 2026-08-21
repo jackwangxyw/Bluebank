@@ -36,6 +36,17 @@ const DIFFICULTY: Record<string, string> = { E: 'Easy', M: 'Medium', H: 'Hard' }
 /** Easy first, hard last. */
 const DIFFICULTY_RANK: Record<string, number> = { E: 0, M: 1, H: 2 }
 
+/**
+ * Right first time, right eventually, and wrong are three different results.
+ * The navigator grid has always drawn them as green / amber / red; this matches
+ * it so the two views cannot disagree.
+ */
+function verdict(item: SetItem): { cls: string; label: string } {
+  if (item.last_correct !== 1) return { cls: 'wrong', label: 'Incorrect' }
+  if (item.attempt_count > 1) return { cls: 'retry', label: 'Correct after retry' }
+  return { cls: 'right', label: 'Correct' }
+}
+
 /** "1m 20s", because 80s is harder to read at a glance. */
 function duration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return '—'
@@ -186,8 +197,11 @@ export function Review({ onPractice }: Props) {
                     <button className="review-row"
                             aria-expanded={open === item.id}
                             onClick={() => setOpen(open === item.id ? null : item.id)}>
-                      <span className={`review-badge ${item.last_correct === 1 ? 'right' : 'wrong'}`}>
-                        {item.last_correct === 1 ? 'Correct' : 'Incorrect'}
+                      {/* Correct on the third go is not the same as correct
+                          first time, and the navigator already says so in
+                          amber. Same three states, same colours. */}
+                      <span className={`review-badge ${verdict(item).cls}`}>
+                        {verdict(item).label}
                       </span>
                       <span className="review-main">
                         <span className="review-skill">{item.skill_name}</span>
@@ -266,10 +280,11 @@ function Detail({ id, item, onPractice, onLogged }: {
           it starts folded and the question stays at the top of the panel. */}
       {data.question.stimulus_html ? (
         <>
-          <button className="review-toggle" onClick={() => setShowPassage((v) => !v)}>
+          <button className="btn small review-toggle"
+                  onClick={() => setShowPassage((v) => !v)}>
+            {showPassage ? 'Hide passage' : 'Show passage'}
             <Icon name={showPassage ? 'chevron-up' : 'chevron-down'}
                   size={14} strokeWidth={2.2} />
-            {showPassage ? 'Hide passage' : 'Show passage'}
           </button>
           {showPassage ? (
             <div className="review-passage">

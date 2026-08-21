@@ -12,6 +12,10 @@ import type { Annotation, GradeResult, Question } from '../types'
  * and made single choices over 900px tall. It has to match the breakpoint in
  * styles.css.
  */
+const DIFFICULTY_LABEL: Record<string, string> = {
+  E: 'Easy', M: 'Medium', H: 'Hard',
+}
+
 const STACK_BELOW = 820
 
 function useStacked(): boolean {
@@ -168,6 +172,13 @@ export function QuestionView(props: Props) {
         </button>
 
         <span className="q-head-spacer" />
+
+        {/* College Board's own rating for this question. Useful mid-set: a slow
+            answer on a Hard one reads differently from a slow answer on an
+            Easy one. */}
+        <span className={`q-diff d-${question.difficulty}`}>
+          {DIFFICULTY_LABEL[question.difficulty] ?? question.difficulty}
+        </span>
 
         {question.type === 'mcq' ? (
           <button className={crossOutMode ? 'strike on' : 'strike'}

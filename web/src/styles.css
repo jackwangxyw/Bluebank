@@ -30,6 +30,8 @@
   --green: #15803d;
   --green-soft: #f0fdf4;
   --yellow: #eab308;
+  /* Readable amber TEXT. --yellow is 1.92:1 on white and illegible. */
+  --amber-ink: #8a5a00;
   --yellow-soft: #fefce8;
   --red: #c8102e;
   --red-soft: #fdf2f4;
@@ -520,6 +522,17 @@ button.row-name:hover svg { opacity: 1; }
 .markbtn.on { color: var(--ink); }
 .markbtn.on svg { color: var(--red); }
 .q-head-spacer { flex: 1; }
+
+/* Sits in the grey band beside Mark for Review. Quiet: it is context, not a
+   control, so it reads as a label rather than something to press. */
+.q-diff {
+  flex: none; padding: 2px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 650; letter-spacing: .01em;
+  border: 1px solid transparent;
+}
+.q-diff.d-E { background: var(--green-soft); color: var(--green); }
+.q-diff.d-M { background: var(--yellow-soft); color: var(--amber-ink); }
+.q-diff.d-H { background: var(--red-soft); color: var(--red); }
 .q-meta { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
 /* The blue ABC key that turns the cross-out tool on. */
@@ -914,9 +927,14 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
  * Clipped rather than display:none on purpose: the text has to stay in the
  * accessibility tree for screen readers, and it has to stay in the text-node
  * stream or every saved highlight offset after it would shift.
+ *
+ * GLOBAL, deliberately. This was a list of the containers that render question
+ * HTML, and the Review page added two more (.review-passage, .review-stem) that
+ * were not on it, so the whole data table reappeared under the graph. The class
+ * never appears in our own markup, only inside College Board HTML, and
+ * "sr-only" means visually hidden everywhere. Do not narrow this again.
  */
-.passage .sr-only, .stem .sr-only, .figure .sr-only,
-.why .sr-only, .explain-full .sr-only, .choice-text .sr-only {
+.sr-only {
   position: absolute;
   width: 1px; height: 1px;
   margin: -1px; padding: 0; border: 0;
@@ -1124,6 +1142,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .q-num { min-width: 34px; height: 24px; font-size: 14px; }
   .markbtn { font-size: 13px; gap: 5px; padding: 3px 4px; }
   .q-meta { display: none; }
+  .q-diff { padding: 2px 7px; font-size: 10.5px; }
   .passage, .stem, .choice-text, .figure, .dir-body { font-size: 16px; line-height: 1.55; }
   .choices { gap: 9px; margin-top: 14px; }
   .choice { gap: 9px; }
@@ -1270,6 +1289,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   font-size: 11.5px; font-weight: 650; text-align: center;
 }
 .review-badge.right { background: var(--green-soft); color: var(--green); }
+.review-badge.retry { background: var(--yellow-soft); color: var(--amber-ink); }
 .review-badge.wrong { background: var(--red-soft); color: var(--red); }
 
 .review-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1304,13 +1324,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .review-h {
   margin: 22px 0 8px; font-size: 12.5px; font-weight: 650; color: var(--muted);
 }
-.review-toggle {
-  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;
-  padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm);
-  background: var(--bg); font: inherit; font-size: 12.5px; color: var(--ink-2);
-  cursor: pointer;
-}
-.review-toggle:hover { border-color: var(--line-2); color: var(--ink); }
+.review-toggle { margin-bottom: 12px; }
 .review-passage, .review-stem {
   font-family: var(--serif); font-size: 16px; line-height: 1.6; margin-bottom: 12px;
 }

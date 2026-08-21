@@ -13,6 +13,8 @@ The calculator runs in Desmos's restricted testing mode, which is their `restric
 
 MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Noto is self hosted in [web/src/fonts](web/src/fonts) rather than loaded from Google, since a font CDN sees the IP of every visitor whether or not they ever sign in. Desmos loads from their CDN the first time you open the calculator, and nothing else in the app needs the network once it's built.
 
+The app does have a google login for syncing your data across devices, but this is strictly NOT needed for normal use. There's more information on our privacy and data collection on the about page of the site itself.
+
 ## Quick Start for Self Hosting
 You need Python 3.9 or newer and Node. The build takes about five minutes, almost all of it downloading question bodies at 12.8 requests a second.
 

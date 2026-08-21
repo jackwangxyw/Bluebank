@@ -297,6 +297,12 @@ export async function reviewed(): Promise<{ questions: SetItem[] }> {
   return { questions }
 }
 
+/** Every attempt at one question, oldest first. */
+export async function attemptsFor(id: string): Promise<{ attempts: store.Attempt[] }> {
+  const c = await boot()
+  return { attempts: [...(c.attempts.get(id) ?? [])] }
+}
+
 /** Re-grade a stored response for its explanation. Records nothing. */
 export async function explain(id: string, response: string | null): Promise<GradeResult> {
   return grade(await loadFull(id), response)

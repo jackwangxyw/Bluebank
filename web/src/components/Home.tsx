@@ -209,8 +209,8 @@ export function Home({
               <span className="reviewcard-main">
                 <span className="reviewcard-t">Review what you've done</span>
                 <span className="reviewcard-b">
-                  Every question you've answered, with your answer, the
-                  explanation and how long it took.
+                  Go back and look at your previous questions to check your
+                  mistakes.
                 </span>
               </span>
               <Icon name="arrow-right" size={18} strokeWidth={2.2} />

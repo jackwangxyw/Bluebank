@@ -116,6 +116,16 @@ export interface Stats {
   by_domain: { domain: string; domain_name: string; n: number; c: number }[]
 }
 
+/** One recorded answer. The store owns the browser copy; this is the shape. */
+export interface Attempt {
+  id: string
+  question_id: string
+  answered_at: number
+  response: string | null
+  correct: 0 | 1
+  seconds: number
+}
+
 export type Status = 'unseen' | 'wrong' | 'correct' | 'flagged'
 
 /**

@@ -7,8 +7,8 @@
  * how one is chosen.
  */
 import type {
-  Annotation, Filters, GradeResult, Mistake, MistakeTag, Question, SetItem,
-  Stats, TaxonomyRow,
+  Annotation, Attempt, Filters, GradeResult, Mistake, MistakeTag, Question,
+  SetItem, Stats, TaxonomyRow,
 } from './types'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -57,6 +57,12 @@ export function question(id: string) {
   }>(
     `/api/questions/${encodeURIComponent(id)}`,
   )
+}
+
+/** Every attempt at one question, oldest first. */
+export function attemptsFor(id: string) {
+  return call<{ attempts: Attempt[] }>(
+    `/api/questions/${encodeURIComponent(id)}/attempts`)
 }
 
 /** Re-grade a stored response for its explanation. Records nothing. */

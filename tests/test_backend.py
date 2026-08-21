@@ -559,6 +559,22 @@ class TestReviewOrder(unittest.TestCase):
                                     order="recent")
         self.assertNotIn("q3", [r["id"] for r in rows])
 
+    def test_attempts_for_returns_the_whole_run_oldest_first(self):
+        # The set row only ever carries the LAST attempt. Review shows every
+        # one, so you can see a question you got wrong before it stuck.
+        for when, resp, ok in ((3000, "A", 0), (4000, "B", 0), (5000, "4", 1)):
+            self.conn.execute(
+                "INSERT INTO attempts (id, question_id, answered_at, response,"
+                " correct, seconds) VALUES (?,?,?,?,?,?)",
+                (db.new_attempt_id(), "q3", when, resp, ok, 20))
+        self.conn.commit()
+        got = session.attempts_for(self.conn, "q3")
+        self.assertEqual([a["response"] for a in got], ["A", "B", "4"])
+        self.assertEqual([a["correct"] for a in got], [0, 0, 1])
+
+    def test_attempts_for_is_empty_when_never_answered(self):
+        self.assertEqual(session.attempts_for(self.conn, "q3"), [])
+
     def test_the_row_carries_what_review_shows(self):
         row = session.question_set(self.conn, statuses=["correct", "wrong"],
                                    order="recent")[0]

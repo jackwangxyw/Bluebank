@@ -1,5 +1,5 @@
 /**
- * Every question you've answered, most recent first.
+ * Every question you've answered, newest first.
  *
  * Not just the ones you got wrong: the point is being able to look back at how
  * long something took and what you were thinking, which matters on the ones you
@@ -7,39 +7,56 @@
  *
  * The list comes straight from the working set, which already carries the last
  * response, whether it was right, the seconds and the attempt count. Opening a
- * row fetches the body and the explanation, so nothing is loaded until asked
- * for; on the static build that is a cache hit, since you only ever answered
- * questions you had already downloaded.
+ * row fetches the body, the explanation and the full attempt history, so
+ * nothing is loaded until asked for; on the static build that is a cache hit,
+ * since you only ever answered questions you had already downloaded.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
 import { Explanation } from './Explanation'
 import { RichText } from './RichText'
 import { Icon } from './Icon'
 import type {
-  Annotation, GradeResult, Mistake, MistakeTag, Question, SetItem,
+  Annotation, Attempt, GradeResult, Mistake, MistakeTag, Question, SetItem,
 } from '../types'
 
 const TAG_LABEL: Record<MistakeTag, string> = {
   process: 'Process', silly: 'Silly', knowledge: 'Knowledge', other: 'Other',
 }
 
+const DIFFICULTY: Record<string, string> = { E: 'Easy', M: 'Medium', H: 'Hard' }
+
 /** "1m 20s", because 80s is harder to read at a glance. */
-function duration(seconds: number | null): string {
-  if (seconds === null) return '--'
+function duration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return '—'
   if (seconds < 60) return `${seconds}s`
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-function when(ts: number | null): string {
-  if (!ts) return ''
+/** Day headings, so a long list reads as sessions rather than one wall. */
+function dayKey(ts: number | null): string {
+  if (!ts) return 'Earlier'
   const then = new Date(ts * 1000)
-  const days = Math.floor((Date.now() - then.getTime()) / 86400000)
-  if (days === 0) return 'Today'
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const days = Math.floor((midnight.getTime() - then.getTime()) / 86400000) + 1
+  if (days <= 0) return 'Today'
   if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return then.toLocaleDateString()
+  if (days < 7) return 'This week'
+  if (days < 30) return 'This month'
+  return then.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
+
+const clock = (ts: number | null) => (ts
+  ? new Date(ts * 1000).toLocaleString(undefined,
+    { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  : '')
+
+type Filter = 'all' | 'wrong' | 'logged'
+
+const FILTERS: [Filter, string][] = [
+  ['all', 'All'], ['wrong', 'Got wrong'], ['logged', 'Has a note'],
+]
 
 interface Props {
   onPractice: (id: string) => void
@@ -47,8 +64,27 @@ interface Props {
 
 export function Review({ onPractice }: Props) {
   const [items, setItems] = useState<SetItem[] | null>(null)
+  /** Which questions have a mistake log. Filled in as rows are opened. */
+  const [logged, setLogged] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState<Filter>('all')
   const [open, setOpen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Stable identity, and it returns the previous Set unchanged when nothing
+   * moved. Both matter: Detail calls this from an effect, so a new closure or a
+   * new Set every time would re-render the parent, hand Detail a new callback,
+   * and re-run the effect forever.
+   */
+  const markLogged = useCallback((qid: string, has: boolean) => {
+    setLogged((prev) => {
+      if (has === prev.has(qid)) return prev
+      const next = new Set(prev)
+      if (has) next.add(qid)
+      else next.delete(qid)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     api.reviewed()
@@ -71,48 +107,92 @@ export function Review({ onPractice }: Props) {
     )
   }
 
-  const totalSeconds = items.reduce((sum, i) => sum + (i.last_seconds ?? 0), 0)
+  const shown = items.filter((i) => (
+    filter === 'wrong' ? i.last_correct !== 1
+      : filter === 'logged' ? logged.has(i.id)
+        : true))
+
+  const groups: { label: string; rows: SetItem[] }[] = []
+  for (const item of shown) {
+    const label = dayKey(item.answered_at)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.rows.push(item)
+    else groups.push({ label, rows: [item] })
+  }
+
   const right = items.filter((i) => i.last_correct === 1).length
+  const total = items.reduce((sum, i) => sum + (i.last_seconds ?? 0), 0)
 
   return (
     <div className="review">
       <h1 className="about-h1">Review</h1>
       <p className="review-sub">
         {items.length.toLocaleString()} answered · {right.toLocaleString()} right ·{' '}
-        {duration(Math.round(totalSeconds))} spent
+        {duration(Math.round(total))} spent
       </p>
 
-      <ul className="review-list">
-        {items.map((item) => (
-          <li key={item.id} className="review-item">
-            <button className="review-row"
-                    aria-expanded={open === item.id}
-                    onClick={() => setOpen(open === item.id ? null : item.id)}>
-              <span className={`review-dot ${item.last_correct === 1 ? 'right' : 'wrong'}`}
-                    aria-hidden="true" />
-              <span className="review-main">
-                <span className="review-skill">{item.skill_name}</span>
-                <span className="review-meta">
-                  {item.domain_name} · {when(item.answered_at)}
-                  {item.attempt_count > 1 ? ` · ${item.attempt_count} tries` : ''}
-                </span>
-              </span>
-              <span className="review-time">{duration(item.last_seconds)}</span>
-              <Icon name={open === item.id ? 'chevron-up' : 'chevron-down'}
-                    size={16} strokeWidth={2.2} />
-            </button>
-            {open === item.id ? (
-              <Detail id={item.id} item={item} onPractice={onPractice} />
-            ) : null}
-          </li>
+      <div className="chips review-filter">
+        {FILTERS.map(([key, label]) => (
+          <button key={key} className={filter === key ? 'chip on' : 'chip'}
+                  aria-pressed={filter === key}
+                  onClick={() => setFilter(key)}>{label}</button>
         ))}
-      </ul>
+      </div>
+
+      {!shown.length ? (
+        <p className="review-empty">
+          {filter === 'logged'
+            ? 'Open a few questions first: notes are read as you expand them.'
+            : 'Nothing matches that filter.'}
+        </p>
+      ) : null}
+
+      {groups.map((group) => (
+        <section key={group.label} className="review-group">
+          <h2 className="review-day">{group.label}</h2>
+          <ul className="review-list">
+            {group.rows.map((item) => (
+              <li key={item.id}
+                  className={open === item.id ? 'review-item open' : 'review-item'}>
+                <button className="review-row"
+                        aria-expanded={open === item.id}
+                        onClick={() => setOpen(open === item.id ? null : item.id)}>
+                  <span className={`review-badge ${item.last_correct === 1 ? 'right' : 'wrong'}`}>
+                    {item.last_correct === 1 ? 'Right' : 'Wrong'}
+                  </span>
+                  <span className="review-main">
+                    <span className="review-skill">{item.skill_name}</span>
+                    <span className="review-meta">
+                      {item.domain_name} · {DIFFICULTY[item.difficulty] ?? item.difficulty}
+                    </span>
+                  </span>
+                  <span className="review-nums">
+                    <span className="review-time">{duration(item.last_seconds)}</span>
+                    {item.attempt_count > 1 ? (
+                      <span className="review-tries">{item.attempt_count} tries</span>
+                    ) : null}
+                  </span>
+                  <Icon name={open === item.id ? 'chevron-up' : 'chevron-down'}
+                        size={16} strokeWidth={2.2} />
+                </button>
+                {open === item.id ? (
+                  <Detail id={item.id} item={item} onPractice={onPractice}
+                          onLogged={markLogged} />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   )
 }
 
-function Detail({ id, item, onPractice }: {
-  id: string; item: SetItem; onPractice: (id: string) => void
+function Detail({ id, item, onPractice, onLogged }: {
+  id: string
+  item: SetItem
+  onPractice: (id: string) => void
+  onLogged: (id: string, has: boolean) => void
 }) {
   const [data, setData] = useState<{
     question: Question; annotations: Annotation[]; mistake: Mistake | null
@@ -123,46 +203,87 @@ function Detail({ id, item, onPractice }: {
    * nothing, which is what keeps expanding a row from logging a fresh attempt.
    */
   const [result, setResult] = useState<GradeResult | null>(null)
+  const [attempts, setAttempts] = useState<Attempt[]>([])
+  const [showPassage, setShowPassage] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let stale = false
-    Promise.all([api.question(id), api.explain(id, item.last_response)])
-      .then(([q, r]) => { if (!stale) { setData(q); setResult(r) } })
+    Promise.all([
+      api.question(id),
+      api.explain(id, item.last_response),
+      api.attemptsFor(id),
+    ])
+      .then(([q, r, a]) => {
+        if (stale) return
+        setData(q); setResult(r); setAttempts(a.attempts)
+        onLogged(id, Boolean(q.mistake))
+      })
       .catch((e: Error) => !stale && setError(e.message))
     return () => { stale = true }
-  }, [id, item.last_response])
+  }, [id, item.last_response, onLogged])
 
   if (error) return <p className="review-empty">{error}</p>
   if (!data || !result) return <p className="review-empty">Loading…</p>
 
   return (
     <div className="review-detail">
+      {/* The passage is the longest thing here and you usually remember it, so
+          it starts folded and the question stays at the top of the panel. */}
       {data.question.stimulus_html ? (
-        <div className="review-passage">
-          <RichText html={data.question.stimulus_html} field="stimulus" annotations={[]} />
-        </div>
+        <>
+          <button className="review-toggle" onClick={() => setShowPassage((v) => !v)}>
+            <Icon name={showPassage ? 'chevron-up' : 'chevron-down'}
+                  size={14} strokeWidth={2.2} />
+            {showPassage ? 'Hide passage' : 'Show passage'}
+          </button>
+          {showPassage ? (
+            <div className="review-passage">
+              <RichText html={data.question.stimulus_html} field="stimulus" annotations={[]} />
+            </div>
+          ) : null}
+        </>
       ) : null}
+
       <div className="review-stem">
         <RichText html={data.question.stem_html} field="stem" annotations={[]} />
       </div>
 
-      <div className="review-facts">
-        <span><strong>Your answer</strong> {item.last_response ?? 'blank'}</span>
-        <span><strong>Result</strong> {item.last_correct === 1 ? 'Right' : 'Wrong'}</span>
-        <span><strong>Time</strong> {duration(item.last_seconds)}</span>
+      <h3 className="review-h">Your attempts</h3>
+      <div className="review-tablewrap">
+        <table className="review-table">
+          <thead>
+            <tr><th>#</th><th>When</th><th>Answer</th><th>Result</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            {attempts.map((a, i) => (
+              <tr key={a.id ?? i}>
+                <td>{i + 1}</td>
+                <td>{clock(a.answered_at)}</td>
+                <td className="review-ans">{a.response || 'blank'}</td>
+                <td className={a.correct ? 'ok' : 'no'}>{a.correct ? 'Right' : 'Wrong'}</td>
+                <td>{duration(a.seconds)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
+      <h3 className="review-h">Mistake log</h3>
       {data.mistake ? (
         <div className="review-mistake">
-          <div className="chips">
-            {data.mistake.tags.map((t) => (
-              <span key={t} className="chip on static">{TAG_LABEL[t]}</span>
-            ))}
-          </div>
+          {data.mistake.tags.length ? (
+            <div className="chips">
+              {data.mistake.tags.map((t) => (
+                <span key={t} className="chip on static">{TAG_LABEL[t]}</span>
+              ))}
+            </div>
+          ) : null}
           {data.mistake.note ? <p className="review-note">{data.mistake.note}</p> : null}
         </div>
-      ) : null}
+      ) : (
+        <p className="review-none">Nothing logged for this one.</p>
+      )}
 
       {data.annotations.length ? (
         <p className="review-anns">
@@ -171,10 +292,11 @@ function Detail({ id, item, onPractice }: {
         </p>
       ) : null}
 
+      <h3 className="review-h">Explanation</h3>
       <Explanation result={result} question={data.question}
                    seconds={item.last_seconds ?? 0} startOpen />
 
-      <button className="btn small" onClick={() => onPractice(id)}>
+      <button className="btn small review-again" onClick={() => onPractice(id)}>
         Practice this question again
         <Icon name="arrow-right" size={14} strokeWidth={2.2} />
       </button>

@@ -78,6 +78,19 @@ def submit(conn, question_id, response, seconds=None, record=True):
 MISTAKE_TAGS = ("process", "silly", "knowledge", "other")
 
 
+def attempts_for(conn, question_id):
+    """Every attempt at one question, oldest first.
+
+    The set row only carries the LAST attempt, which is all the navigator needs.
+    Review wants the whole run, so you can see a question you got wrong twice
+    before it stuck.
+    """
+    rows = conn.execute(
+        "SELECT id, answered_at, response, correct, seconds FROM attempts"
+        " WHERE question_id = ? ORDER BY answered_at, id", (question_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_mistake(conn, question_id):
     """The mistake log for one question, or None if nothing was ever written."""
     row = conn.execute(

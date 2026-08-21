@@ -71,12 +71,6 @@ export function MistakeLog({ mistake, onSave, onClose }: Props) {
             ))}
           </div>
 
-          <ul className="mlog-hints">
-            {MISTAKE_TAGS.map((tag) => (
-              <li key={tag}><strong>{TAG_LABEL[tag]}</strong> {TAG_HINT[tag]}</li>
-            ))}
-          </ul>
-
           <label className="mlog-label" htmlFor="mlog-note">Notes</label>
           <textarea id="mlog-note" className="mlog-note" rows={6}
                     placeholder="What you missed, and what to do next time."

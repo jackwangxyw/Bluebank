@@ -62,7 +62,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 body.dragging { cursor: col-resize; user-select: none; }
-button { font-family: inherit; }
+/* `color: inherit` is not cosmetic. A <button> with no colour of its own takes
+   the UA keyword `buttontext`, which Chrome resolves to black and iOS Safari
+   resolves to the system accent blue. Answer choices and the section cards on
+   Home are buttons, so on an iPhone every answer choice rendered in blue while
+   the same CSS looked black on desktop. Do not remove this. */
+button { font-family: inherit; color: inherit; }
 
 /* ============================ home + stats ============================ */
 /*
@@ -1050,8 +1055,8 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
    wide and a phone has about 70px spare. */
 .ghlink {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; margin-left: 8px; border-radius: var(--r-sm);
-  color: var(--muted); text-decoration: none;
+  width: 34px; height: 34px; margin-left: 6px; border-radius: var(--r-sm);
+  color: var(--ink-2); text-decoration: none;
 }
 .ghlink:hover { background: var(--bg-soft); color: var(--ink); }
 
@@ -1159,9 +1164,13 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 }
 
 /* iOS wraps detected dates and numbers in its own anchors inside the question
-   HTML. The format-detection meta in index.html should stop it; this is here
-   because a UA-injected link with UA styling is not otherwise overridable, and
-   blue underlined years in the middle of a passage look like a bug. */
+   HTML, which would render them blue and underlined mid-passage. The
+   format-detection meta in index.html should stop it; this is the backstop,
+   because a UA-injected link is not otherwise overridable.
+
+   NOTE: this was NOT the cause of the blue answer text that was reported. That
+   was `buttontext` on the choice buttons, fixed at the top of this file. Both
+   guards are worth having, but do not confuse them again. */
 .passage a[x-apple-data-detectors],
 .stem a[x-apple-data-detectors],
 .choice-text a[x-apple-data-detectors],

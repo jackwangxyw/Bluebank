@@ -26,7 +26,7 @@ export function GithubLink() {
   return (
     <a className="ghlink" href={REPO} target="_blank" rel="noreferrer"
        title="Source on GitHub" aria-label="Source on GitHub">
-      <GithubMark size={17} />
+      <GithubMark size={22} />
     </a>
   )
 }

@@ -764,12 +764,10 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 }
 /* The darker sliver under the fold is what makes it read as wrapping over the
    corner rather than as a flat triangle stuck on top. */
-.nav-cell.is-flagged::before {
-  content: ''; position: absolute; top: 22px; right: 0;
-  width: 0; height: 0;
-  border-top: 4px solid #7d0a1d;
-  border-right: 4px solid transparent;
-}
+/* There used to be a 4px dark triangle here, meant to read as the shadow under
+   a folded corner. At the size these cells actually render it just looked like
+   a stray artifact hanging off the ribbon, outside the cell border. The ribbon
+   alone reads fine. */
 .nav-foot { padding: 0 20px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
 /* ---------- highlights & notes ---------- */
@@ -1048,13 +1046,14 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 /* ---- about: link and the GitHub button ---- */
 .about-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .about-link:hover { color: var(--accent-dark); }
-.ghbtn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; border: 1px solid var(--line); border-radius: var(--r-sm);
-  background: var(--bg); color: var(--ink-2);
-  font-size: 14px; font-weight: 600; text-decoration: none;
+/* Nav row, right of the sync badge. Icon only: the row is already four items
+   wide and a phone has about 70px spare. */
+.ghlink {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; margin-left: 8px; border-radius: var(--r-sm);
+  color: var(--muted); text-decoration: none;
 }
-.ghbtn:hover { border-color: var(--line-2); background: var(--bg-soft); color: var(--ink); }
+.ghlink:hover { background: var(--bg-soft); color: var(--ink); }
 
 /* ==================================================== phone and small tablet
    The practice view was built for a desktop split pane. Measured at 390px
@@ -1113,6 +1112,28 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .bottom-right { gap: 8px; }
   .btn { padding: 8px 14px; font-size: 13.5px; }
 
+  /* The submit button was sitting flush against the bottom bar. The stacked
+     rule below uses the padding shorthand, which wiped the pane's bottom
+     padding, so it has to be set here rather than on .pane. */
+  .split.stacked .pane, .single .pane { padding-bottom: 40px; }
+
+  /* Full width and one line. It was 173px wide and 72px tall, ie. wrapped over
+     two lines. The bar is a space-between row, so the button has to get its own
+     row before width:100% means anything. */
+  .startbar-inner { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
+  .count { text-align: center; font-size: 13.5px; }
+  .btn.lg {
+    width: 100%; justify-content: center; white-space: nowrap;
+    padding: 14px 20px; font-size: 15px;
+  }
+
+  /* The glyphs say what this is; the words were wrapping to two lines and
+     making the header feel cramped. The count stays. */
+  .tool-text { display: none; }
+
+  /* No blue flash when a passage is tapped. */
+  a, button, .choice-main { -webkit-tap-highlight-color: transparent; }
+
   /* Panels that assumed a wide viewport. */
   .notes-panel { width: min(400px, 100vw); }
   .dir-popup { top: 64px; width: min(680px, 94vw); }
@@ -1135,4 +1156,17 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .btn { padding: 7px 11px; font-size: 12.5px; }
   .passage, .stem, .choice-text, .figure, .dir-body { font-size: 15.5px; }
   .pane { --pane-pad: 13px; }
+}
+
+/* iOS wraps detected dates and numbers in its own anchors inside the question
+   HTML. The format-detection meta in index.html should stop it; this is here
+   because a UA-injected link with UA styling is not otherwise overridable, and
+   blue underlined years in the middle of a passage look like a bug. */
+.passage a[x-apple-data-detectors],
+.stem a[x-apple-data-detectors],
+.choice-text a[x-apple-data-detectors],
+.figure a[x-apple-data-detectors] {
+  color: inherit !important;
+  text-decoration: none !important;
+  pointer-events: none;
 }

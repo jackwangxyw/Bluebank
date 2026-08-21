@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Reading passages are full of years, dates and figures. iOS detects those
+         and wraps them in its own links, which renders them blue and underlined
+         inside the question text. This turns that off. -->
+    <meta name="format-detection"
+          content="telephone=no,date=no,address=no,email=no" />
     <title>Bluebank</title>
     <!-- Noto is self-hosted in src/fonts, declared by src/fonts.css. It used to
          load from fonts.googleapis.com, which meant Google saw the IP of every

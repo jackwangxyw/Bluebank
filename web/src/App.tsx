@@ -4,6 +4,7 @@ import { Home } from './components/Home'
 import { Stats as StatsPage } from './components/Stats'
 import { About } from './components/About'
 import { AccountBadge } from './components/Account'
+import { GithubLink } from './components/Github'
 import { Navigator } from './components/Navigator'
 import { Notes } from './components/Notes'
 import { QuestionView } from './components/QuestionView'
@@ -196,6 +197,7 @@ export default function App() {
               renders its own header and deliberately does not get one.
             */}
             <AccountBadge />
+            <GithubLink />
           </div>
         </nav>
 
@@ -264,7 +266,9 @@ export default function App() {
               <Icon name="note" size={20} />
             </span>
             <span>
-              Highlights &amp; Notes
+              {/* Two spans so a phone can drop the words and keep the count.
+                  The glyphs already say what this is. */}
+              <span className="tool-text">Highlights &amp; Notes</span>
               {annotations.length ? ` (${annotations.length})` : ''}
             </span>
           </button>

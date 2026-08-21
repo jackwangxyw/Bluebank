@@ -75,11 +75,9 @@ export function About() {
       </section>
 
       <section className="about-block">
-        <h2 className="about-h2">Source</h2>
+        <h2 className="about-h2">License</h2>
         <p className="about-p">
-          Bluebank is open source under the GNU General Public License v3. You
-          can read it, run it yourself, or change it, as long as anything you
-          pass on stays under the same license.
+          Bluebank is open source under the GNU General Public License v3. 
         </p>
       </section>
 

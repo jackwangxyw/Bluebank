@@ -1107,15 +1107,16 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .topbar-center { gap: 2px; }
   .clock { font-size: 17px; }
   .hide-btn { padding: 0 10px; font-size: 11px; border-width: 1px; }
-  /* Two things at once. Centring the row stops the label-less Highlights tool
-     floating above everything now that its text is hidden, and the min-height
-     keeps every tool the same box height so their GLYPHS still share a line
-     instead of the label-less one dropping to its own centre. */
+  /* The Highlights tool has no label on a phone, so it is glyph-only and must
+     sit on the bar's vertical centre.
+     An earlier attempt gave every tool a min-height so their glyphs shared a
+     line with the labelled ones. That looked aligned but put the glyphs 6px
+     ABOVE centre, because the reserved label row pushed them up. Centring the
+     row and letting each tool be its natural height is what actually centres
+     them; the labelled tools stay taller and their glyph rides higher, which is
+     what having a caption underneath means. */
   .topbar-right { gap: 6px; align-items: center; }
-  .tool {
-    font-size: 9.5px; padding: 2px; gap: 1px; line-height: 1.2; max-width: 58px;
-    min-height: 34px; justify-content: flex-start;
-  }
+  .tool { font-size: 9.5px; padding: 2px; gap: 1px; line-height: 1.2; max-width: 58px; }
   .tool-glyphs { height: 18px; }
 
   /* Question band and choices. */
@@ -1154,6 +1155,9 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   /* The glyphs say what this is; the words were wrapping to two lines and
      making the header feel cramped. The count stays. */
   .tool-text { display: none; }
+  /* With the words gone the wrapper is an empty flex item; it still claims the
+     gap unless it goes too. Kept when it holds a count, which is real content. */
+  .tool-label:not(.has-count) { display: none; }
 
   /* No blue flash when a passage is tapped. */
   a, button, .choice-main { -webkit-tap-highlight-color: transparent; }

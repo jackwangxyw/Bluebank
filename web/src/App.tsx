@@ -284,9 +284,11 @@ export default function App() {
               <Icon name="highlighter" size={21} />
               <Icon name="note" size={20} />
             </span>
-            <span>
-              {/* Two spans so a phone can drop the words and keep the count.
-                  The glyphs already say what this is. */}
+            {/* `has-count` so a phone can drop the label AND the wrapper when
+                there is nothing left inside it. Hiding only the words leaves an
+                empty flex item that still eats the row gap, which pushed the
+                glyphs half a pixel off the bar's centre. */}
+            <span className={annotations.length ? 'tool-label has-count' : 'tool-label'}>
               <span className="tool-text">Highlights &amp; Notes</span>
               {annotations.length ? ` (${annotations.length})` : ''}
             </span>

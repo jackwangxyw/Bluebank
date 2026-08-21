@@ -231,7 +231,10 @@ function cleanAnnotations(raw) {
 async function handleAuth(request, env, origin) {
   const body = await request.json().catch(() => null)
   if (!body || !body.credential) return fail('missing credential', 400, origin)
-  if (!env.GOOGLE_CLIENT_ID) return fail('server not configured', 500, origin)
+
+  if (!env.GOOGLE_CLIENT_ID) {
+    return fail('GOOGLE_CLIENT_ID is not set on the Worker. Check GET /health.', 500, origin)
+  }
 
   const sub = await verifyGoogleToken(body.credential, env.GOOGLE_CLIENT_ID)
   if (!sub) return fail('invalid token', 401, origin)
@@ -418,6 +421,20 @@ export default {
     }
 
     try {
+      if (url.pathname === '/health' && request.method === 'GET') {
+        // Booleans and the client id only. The client id is public by
+        // definition (it ships in the frontend bundle), so echoing it is how
+        // you confirm the Worker and the site agree on it. ALLOWED_SUBS is
+        // reported as a count, never a value: a sub identifies a person.
+        const subs = (env.ALLOWED_SUBS || '').split(',').map((s) => s.trim()).filter(Boolean)
+        return json({
+          ok: true,
+          d1Bound: Boolean(env.DB),
+          googleClientId: env.GOOGLE_CLIENT_ID || null,
+          allowedSubsCount: subs.length,
+          allowedOrigins: ALLOWED_ORIGINS,
+        }, 200, origin)
+      }
       if (url.pathname === '/auth/google' && request.method === 'POST') {
         return await handleAuth(request, env, origin)
       }

@@ -1037,15 +1037,11 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   letter-spacing: .07em; color: var(--muted);
 }
 .about-lead { margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: var(--ink-2); }
-.about-p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); }
-.about-list { margin: 0; }
-.about-list > div { padding: 14px 0; border-bottom: 1px solid var(--line); }
-.about-list > div:last-child { border-bottom: 0; }
-.about-list dt {
-  margin: 0 0 5px; font-size: 14px; font-weight: 650; color: var(--ink);
+.about-p {
+  margin: 0 0 14px; font-size: 14.5px; line-height: 1.7; color: var(--ink-2);
 }
-.about-list dd { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
-.about-list dd strong { color: var(--ink-2); font-weight: 650; }
+.about-p:last-child { margin-bottom: 0; }
+.about-p strong { color: var(--ink); font-weight: 650; }
 
 @media (max-width: 640px) {
   .acct-panel { width: min(340px, calc(100vw - 40px)); }

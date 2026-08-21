@@ -1,9 +1,9 @@
 /**
- * The account badge and its panel: the ONLY sync affordance anywhere in the app.
+ * The account badge and its panel: the only sync affordance in the app.
  *
- * It lives in the corner of the You page and nowhere else. A visitor who never
- * opens that page is never shown a sign-in prompt, and because Google's script
- * is loaded lazily by lib/auth.ts they never make a request to Google either.
+ * It lives in the corner of the Stats page and nowhere else. Because lib/auth.ts
+ * loads Google's script lazily, someone who never opens that page never makes a
+ * request to Google either.
  *
  * When VITE_SYNC_API is unset (the localhost build) this renders nothing at all.
  */
@@ -13,7 +13,9 @@ import * as sync from '../lib/sync'
 import { Icon } from './Icon'
 
 const LABEL: Record<sync.SyncStatus, string> = {
-  off: 'Not signed in',
+  // Says what the feature is, not just that it is off. "Not signed in" told you
+  // the state but never that syncing was on offer.
+  off: 'Sign in to sync',
   syncing: 'Syncing',
   synced: 'Synced',
   pending: 'Not synced',
@@ -29,6 +31,7 @@ function useSyncStatus(): sync.SyncStatus {
 export function AccountBadge() {
   const status = useSyncStatus()
   const [open, setOpen] = useState(false)
+  const [signedIn, setSignedIn] = useState(auth.signedIn())
   const wrap = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -54,30 +57,41 @@ export function AccountBadge() {
         <span className="acct-dot" aria-hidden="true" />
         <span className="acct-label">{LABEL[status]}</span>
       </button>
-      {open ? <AccountPanel onClose={() => setOpen(false)} /> : null}
+      {/*
+        Signed-in and signed-out are separate COMPONENTS, not two branches of
+        one. React diffs a component's output by position, so returning both
+        shapes from a single component let it reuse the host <div> that Google's
+        button had been rendered into: it swapped the className and kept the
+        iframe, because an element GIS injected is not in React's tree and React
+        never removes it. The result was a stale "Sign in as ..." button, name
+        and email included, sitting inside the signed-in panel. Two component
+        types force a real unmount and the iframe goes with it.
+      */}
+      {open && !signedIn ? (
+        <SignedOutPanel onSignedIn={() => setSignedIn(true)} />
+      ) : null}
+      {open && signedIn ? (
+        <SignedInPanel onSignedOut={() => setSignedIn(false)}
+                       onClose={() => setOpen(false)} />
+      ) : null}
     </div>
   )
 }
 
-function AccountPanel({ onClose }: { onClose: () => void }) {
-  const status = useSyncStatus()
-  const [signedIn, setSignedIn] = useState(auth.signedIn())
+function SignedOutPanel({ onSignedIn }: { onSignedIn: () => void }) {
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const buttonSlot = useRef<HTMLDivElement>(null)
+  const slot = useRef<HTMLDivElement>(null)
   const rendered = useRef(false)
 
   // Google's script is fetched here and only here, on a panel the user opened
   // deliberately. Nothing loads it on app start.
   useEffect(() => {
-    if (signedIn || rendered.current || !buttonSlot.current) return
+    if (rendered.current || !slot.current) return
     rendered.current = true
     auth.renderButton(
-      buttonSlot.current,
+      slot.current,
       async () => {
-        setSignedIn(true)
-        setError(null)
+        onSignedIn()
         // Everything practised anonymously goes up on the first sync. Safe
         // because attempts are a grow-only set: re-sending is a no-op.
         await sync.seedOutbox()
@@ -85,55 +99,62 @@ function AccountPanel({ onClose }: { onClose: () => void }) {
       },
       (message) => { setError(message); rendered.current = false },
     ).catch((e: Error) => { setError(e.message); rendered.current = false })
-  }, [signedIn])
+  }, [onSignedIn])
+
+  return (
+    <div className="acct-panel" role="dialog" aria-label="Sync">
+      <h3 className="acct-h">Sync across devices</h3>
+      <p className="acct-p">
+        Practice on a laptop, pick it up on a desktop. Your answers, highlights
+        and flagged questions follow you.
+      </p>
+      <div className="acct-note">
+        <p><strong>We don't store your email, name or picture.</strong> Signing
+        in links your progress to an anonymous Google account id and nothing else.</p>
+        <p>What is stored: which questions you answered, what you answered, your
+        highlights and notes, and which questions you flagged.</p>
+        <p>You can delete all of it at any time, from this panel.</p>
+      </div>
+      <div className="acct-gbtn" ref={slot} />
+      {error ? <p className="acct-err">{error}</p> : null}
+      <p className="acct-fine">
+        Bluebank works fully without an account. Nothing is uploaded unless you
+        sign in.
+      </p>
+    </div>
+  )
+}
+
+function SignedInPanel(
+  { onSignedOut, onClose }: { onSignedOut: () => void; onClose: () => void },
+) {
+  const status = useSyncStatus()
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const handleSignOut = useCallback(async () => {
     setBusy(true)
     await auth.signOut()
     await sync.reset()
-    setSignedIn(false)
+    onSignedOut()
     setBusy(false)
     onClose()
-  }, [onClose])
+  }, [onSignedOut, onClose])
 
   const handleDelete = useCallback(async () => {
     setBusy(true)
     try {
       await auth.deleteRemoteData()
       await sync.reset()
-      setSignedIn(false)
+      onSignedOut()
       onClose()
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(false)
     }
-  }, [onClose])
-
-  if (!signedIn) {
-    return (
-      <div className="acct-panel" role="dialog" aria-label="Sync">
-        <h3 className="acct-h">Sync across devices</h3>
-        <p className="acct-p">
-          Practice on a laptop, pick it up on a desktop. Your answers, highlights
-          and flagged questions follow you.
-        </p>
-        <div className="acct-note">
-          <p><strong>We do not store your email, name or picture.</strong> Signing
-          in links your progress to an anonymous Google account id and nothing else.</p>
-          <p>What is stored: which questions you answered, what you answered, your
-          highlights and notes, and which questions you flagged.</p>
-          <p>You can delete all of it at any time, from this panel.</p>
-        </div>
-        <div className="acct-gbtn" ref={buttonSlot} />
-        {error ? <p className="acct-err">{error}</p> : null}
-        <p className="acct-fine">
-          Bluebank works fully without an account. Nothing is uploaded unless you
-          sign in.
-        </p>
-      </div>
-    )
-  }
+  }, [onSignedOut, onClose])
 
   return (
     <div className="acct-panel" role="dialog" aria-label="Sync">
@@ -141,7 +162,7 @@ function AccountPanel({ onClose }: { onClose: () => void }) {
       <p className="acct-status">
         <span className={`acct-dot ${status}`} aria-hidden="true" />
         {LABEL[status]}
-        {status === 'pending' ? ' — will retry' : null}
+        {status === 'pending' ? ', will retry' : null}
       </p>
       {error || sync.getError()
         ? <p className="acct-err">{error || sync.getError()}</p>

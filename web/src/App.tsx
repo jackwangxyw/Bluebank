@@ -186,7 +186,7 @@ export default function App() {
             <button className={view === 'home' ? 'tab on' : 'tab'}
                     onClick={() => setView('home')}>Practice</button>
             <button className={view === 'stats' ? 'tab on' : 'tab'}
-                    onClick={() => setView('stats')}>You</button>
+                    onClick={() => setView('stats')}>Stats</button>
             <button className={view === 'about' ? 'tab on' : 'tab'}
                     onClick={() => setView('about')}>About</button>
           </div>

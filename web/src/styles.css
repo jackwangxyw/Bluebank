@@ -1093,8 +1093,10 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .tabs-inner { padding: 0 14px; gap: 0; }
   .wordmark { margin-right: 12px; font-size: 14px; }
   .tab { padding: 0 9px; font-size: 13.5px; }
+  .tab.on::after { left: 9px; right: 9px; }
   .about { padding: 32px 20px 64px; }
 }
+
 
 /* ---- about: link and the GitHub button ---- */
 .about-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
@@ -1109,6 +1111,38 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   border-radius: var(--r-sm); color: var(--ink-2); text-decoration: none;
 }
 .ghlink:hover { background: var(--bg-soft); color: var(--ink); }
+
+/* The nav row runs out of width well before the practice view does. The
+   wordmark, four tabs, the GitHub link and the sync badge measured 436px
+   together, so below that it overflowed on every phone. Review being a tab
+   rather than a card is what pushed it over; it was already 12px short at
+   360px before that.
+
+   GitHub is the one that goes, because it is the only item in this row that is
+   also reachable from somewhere else (the About page links it). Everything
+   else here is a destination.
+
+   This has to sit after .ghlink rather than up with the other tab rules, or
+   its display:inline-flex wins on source order and the link never hides. */
+@media (max-width: 470px) {
+  /* Everything fits down to 360px after the tightening below. Narrower than
+     that (a 320px phone) it scrolls rather than clipping, so no tab can become
+     unreachable. Safe to make this a scroll container only here, because below
+     819px .acct-panel is position:fixed and so is not clipped by it. */
+  .tabs-inner {
+    padding: 0 10px; overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs-inner::-webkit-scrollbar { display: none; }
+  .tabs-inner > * { flex: none; }
+  .wordmark { margin-right: 10px; font-size: 13.5px; }
+  .tab { padding: 0 6px; font-size: 13px; }
+  .tab.on::after { left: 6px; right: 6px; }
+  .ghlink { display: none; }
+  /* The auto margin that pushes the right-hand group to the end lives on
+     .ghlink, so it has to move when .ghlink does. */
+  .acct { margin-left: auto; }
+}
 
 /* ==================================================== phone and small tablet
    The practice view was built for a desktop split pane. Measured at 390px
@@ -1212,7 +1246,13 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 
 /* Narrow phones. */
 @media (max-width: 430px) {
-  .topbar-right { gap: 2px; }
+  /* Highlights & Notes is the only tool with two glyphs in it, and at a 2px
+     button gap its second glyph sat 6px from the mistake log's tag while its
+     own two glyphs sat 5px apart. The tag read as a third glyph in the same
+     button. The two spacings have to differ for the grouping to be legible, so
+     the gap between buttons goes up and the gap inside one comes down. */
+  .topbar-right { gap: 9px; }
+  .tool-glyphs { gap: 3px; }
   .tool { max-width: 50px; font-size: 9px; }
   .clock { font-size: 15.5px; }
   .section-title { font-size: 13.5px; }
@@ -1248,8 +1288,11 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 }
 .mlog-hints li { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
 .mlog-hints strong { color: var(--ink-2); font-weight: 650; }
+/* The top margin is the point: the tag chips sat flush against this label with
+   nothing between them, so the two controls read as one cramped block instead
+   of as "pick your tags" then "write a note". */
 .mlog-label {
-  display: block; margin-bottom: 6px;
+  display: block; margin: 24px 0 8px;
   font-size: 13px; font-weight: 650; color: var(--ink-2);
 }
 .mlog-note {
@@ -1261,16 +1304,6 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .mlog-fine { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
 
 /* ---- review ---- */
-.reviewcard {
-  display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 26px;
-  padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--r-md);
-  background: var(--bg); cursor: pointer; text-align: left; color: var(--ink);
-}
-.reviewcard:hover { border-color: var(--line-2); background: var(--bg-soft); }
-.reviewcard-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.reviewcard-t { font-size: 15px; font-weight: 650; }
-.reviewcard-b { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
-
 .review { max-width: 860px; margin: 0 auto; padding: 40px 32px 80px; }
 .review-sub { margin: 0 0 18px; font-size: 14px; color: var(--muted); }
 .review-filter { margin-bottom: 10px; }
@@ -1372,7 +1405,6 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 
 @media (max-width: 819px) {
   .review { padding: 28px 16px 60px; }
-  .reviewcard { padding: 14px; }
   .review-row { padding: 12px 4px; gap: 9px; }
   .review-badge { min-width: 54px; padding: 3px 7px; font-size: 10.5px; }
   .review-detail { padding: 10px 14px 24px; }

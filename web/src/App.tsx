@@ -230,6 +230,8 @@ export default function App() {
             <span className="wordmark">Bluebank</span>
             <button className={view === 'home' ? 'tab on' : 'tab'}
                     onClick={() => setView('home')}>Practice</button>
+            <button className={view === 'review' ? 'tab on' : 'tab'}
+                    onClick={() => setView('review')}>Review</button>
             <button className={view === 'stats' ? 'tab on' : 'tab'}
                     onClick={() => setView('stats')}>Stats</button>
             <button className={view === 'about' ? 'tab on' : 'tab'}
@@ -248,7 +250,6 @@ export default function App() {
         {view === 'home' ? (
           <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
                 loading={listLoading} onChange={setFilters}
-                onReview={() => setView('review')}
                 onStart={() => { setIndex(0); setView('practice') }} />
         ) : view === 'about' ? (
           <div className="page">
@@ -261,7 +262,6 @@ export default function App() {
         ) : (
           <div className="page">
             <StatsPage taxonomy={taxonomy}
-                       onReview={() => setView('review')}
                        onPractice={(next) => {
                          setFilters(next)
                          setIndex(0)

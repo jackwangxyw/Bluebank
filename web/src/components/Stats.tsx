@@ -5,7 +5,6 @@ import type { Filters, Section, TaxonomyRow } from '../types'
 interface Props {
   taxonomy: TaxonomyRow[]
   onPractice: (filters: Filters) => void
-  onReview: () => void
 }
 
 /**
@@ -60,7 +59,7 @@ function Bar({ value, total, title }: { value: number; total: number; title?: st
   )
 }
 
-export function Stats({ taxonomy, onPractice, onReview }: Props) {
+export function Stats({ taxonomy, onPractice }: Props) {
   const model = useMemo(() => {
     const overall = empty()
     const sections = new Map<Section, Tally>()
@@ -163,16 +162,6 @@ export function Stats({ taxonomy, onPractice, onReview }: Props) {
           </span>
         </div>
       </section>
-
-      <button className="reviewcard" onClick={onReview}>
-        <span className="reviewcard-main">
-          <span className="reviewcard-t">Review what you've done</span>
-          <span className="reviewcard-b">
-            Go back and look at your previous questions to check your mistakes.
-          </span>
-        </span>
-        <Icon name="arrow-right" size={18} strokeWidth={2.2} />
-      </button>
 
       <section className="block">
         <div className="block-head">

@@ -10,7 +10,6 @@ interface Props {
   loading: boolean
   onChange: (next: Filters) => void
   onStart: () => void
-  onReview: () => void
 }
 
 /** 'ALL' is a real choice, distinct from having chosen nothing yet. */
@@ -48,7 +47,7 @@ interface DomainRow {
 }
 
 export function Home({
-  taxonomy, stats, value, count, loading, onChange, onStart, onReview,
+  taxonomy, stats, value, count, loading, onChange, onStart,
 }: Props) {
   /**
    * Which section card is chosen, held locally because the filter cannot say
@@ -203,19 +202,6 @@ export function Home({
             </div>
           ) : null}
 
-          {/* Only once there is something to look back at. */}
-          {stats && stats.attempts > 0 ? (
-            <button className="reviewcard" onClick={onReview}>
-              <span className="reviewcard-main">
-                <span className="reviewcard-t">Review what you've done</span>
-                <span className="reviewcard-b">
-                  Go back and look at your previous questions to check your
-                  mistakes.
-                </span>
-              </span>
-              <Icon name="arrow-right" size={18} strokeWidth={2.2} />
-            </button>
-          ) : null}
         </header>
 
         <section className="pick">

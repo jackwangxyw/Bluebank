@@ -32,6 +32,9 @@ const DIRECTIONS = {
 export default function App() {
   const [view, setView] = useState<'home' | 'stats' | 'about' | 'practice'>('home')
 
+  /** Bumped by a sync that pulled rows; drives the taxonomy refetch below. */
+  const [dataVersion, setDataVersion] = useState(0)
+
   const [taxonomy, setTaxonomy] = useState<TaxonomyRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [filters, setFilters] = useState<Filters>({})
@@ -62,15 +65,31 @@ export default function App() {
   const seconds = useQuestionTimer(
     current?.id ?? null, practising && question !== null && result === null)
 
+  /**
+   * Re-read the taxonomy whenever you land back on Home or Stats, and whenever
+   * a sync pulls something new.
+   *
+   * This used to run once on mount. Answering a question updates the stores but
+   * nothing told React, so "Bank covered", the per-card progress and the whole
+   * Stats page kept showing the numbers from page load until you reloaded.
+   * Practice is excluded because the numbers are not on screen there and the
+   * set list would refetch under you mid-question.
+   */
   useEffect(() => {
+    if (view === 'practice') return
+    let stale = false
     api.taxonomy()
-      .then((d) => { setTaxonomy(d.taxonomy); setStats(d.stats) })
-      .catch((e: Error) => setError(e.message))
-  }, [])
+      .then((d) => { if (!stale) { setTaxonomy(d.taxonomy); setStats(d.stats) } })
+      .catch((e: Error) => !stale && setError(e.message))
+    return () => { stale = true }
+  }, [view, dataVersion])
 
   // Starts the sync loop if a session already exists. No-op when signed out or
   // when the build has no sync configured, so the localhost path is untouched.
   useEffect(() => { sync.start() }, [])
+
+  // A pull from another device changes the same numbers an answer does.
+  useEffect(() => sync.subscribe(() => setDataVersion(sync.getDataVersion())), [])
 
   useEffect(() => {
     let stale = false
@@ -196,8 +215,8 @@ export default function App() {
               report was that nothing indicated sync existed. The practice view
               renders its own header and deliberately does not get one.
             */}
-            <AccountBadge />
             <GithubLink />
+            <AccountBadge />
           </div>
         </nav>
 

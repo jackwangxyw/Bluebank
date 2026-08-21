@@ -78,24 +78,47 @@ async function boot(): Promise<Cache> {
       }
     }
 
-    const attempts = new Map<string, store.Attempt[]>()
-    for (const attempt of await store.loadAttempts()) {
-      const list = attempts.get(attempt.question_id)
-      if (list) list.push(attempt)
-      else attempts.set(attempt.question_id, [attempt])
-    }
-    for (const list of attempts.values()) list.sort((a, b) => a.answered_at - b.answered_at)
-
-    const flagged = new Set<string>()
-    for (const mark of await store.loadMarks()) {
-      if (mark.flagged) flagged.add(mark.question_id)
-    }
-
+    const { attempts, flagged } = await readProgress()
     cache = { stubs, attempts, flagged }
     return cache
   })()
   return booting
 }
+
+/** The two progress maps, read fresh from IndexedDB. */
+async function readProgress() {
+  const attempts = new Map<string, store.Attempt[]>()
+  for (const attempt of await store.loadAttempts()) {
+    const list = attempts.get(attempt.question_id)
+    if (list) list.push(attempt)
+    else attempts.set(attempt.question_id, [attempt])
+  }
+  for (const list of attempts.values()) list.sort((a, b) => a.answered_at - b.answered_at)
+
+  const flagged = new Set<string>()
+  for (const mark of await store.loadMarks()) {
+    if (mark.flagged) flagged.add(mark.question_id)
+  }
+  return { attempts, flagged }
+}
+
+/**
+ * Rebuild the in-memory progress maps from IndexedDB.
+ *
+ * Sync writes attempts and marks straight to the object stores, so without this
+ * the cache below still held only what THIS tab had written: answers pulled
+ * from another device were invisible to taxonomy() and stats() until a reload.
+ */
+export async function reloadProgress(): Promise<void> {
+  if (!cache) return
+  const { attempts, flagged } = await readProgress()
+  cache.attempts = attempts
+  cache.flagged = flagged
+}
+
+// Registered rather than imported the other way round: apiLocal already imports
+// sync, and having sync import apiLocal would make the cycle real.
+sync.onRemoteData(reloadProgress)
 
 /** Force a re-read of the index from College Board, picking up new questions. */
 export async function refreshIndex(): Promise<number> {

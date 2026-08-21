@@ -134,6 +134,7 @@ async function collect(keys: string[]) {
 }
 
 async function apply(data: ServerResponse): Promise<void> {
+  const wrote = Boolean(data.attempts?.length || data.marks?.length || data.annotations?.length)
   // Attempts: union. Re-putting one we already have is a no-op by construction,
   // which is why the server can safely echo our own writes back.
   if (data.attempts?.length) {
@@ -145,6 +146,13 @@ async function apply(data: ServerResponse): Promise<void> {
   for (const m of data.marks ?? []) await store.putMark(m)
   for (const a of data.annotations ?? []) {
     await store.putAnnotations({ question_id: a.question_id, items: a.items, updated_at: a.updated_at })
+  }
+
+  if (wrote) {
+    dataVersion++
+    // Writing the stores is not enough: apiLocal keeps its own maps and would
+    // otherwise keep serving the pre-sync numbers until the page reloads.
+    if (onApplied) await onApplied()
   }
 }
 
@@ -173,6 +181,14 @@ export async function reset(): Promise<void> {
   await store.setMeta(CURSOR_KEY, 0)
   emit('off')
 }
+
+let dataVersion = 0
+/** Bumps only when a sync actually wrote something pulled from the server. */
+export const getDataVersion = (): number => dataVersion
+
+let onApplied: (() => Promise<void>) | null = null
+/** apiLocal registers here so its in-memory maps can be rebuilt after a pull. */
+export function onRemoteData(fn: () => Promise<void>): void { onApplied = fn }
 
 let started = false
 

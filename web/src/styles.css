@@ -38,6 +38,9 @@
   --hl-blue: #bfdbfe;
   --hl-pink: #fbcfe8;
 
+  /* Nav row height. The account panel is positioned off it on mobile. */
+  --navh: 56px;
+
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
@@ -88,7 +91,7 @@ button { font-family: inherit; color: inherit; }
 .tabs { flex: none; border-bottom: 1px solid var(--line); background: var(--bg); }
 .tabs-inner {
   max-width: 860px; margin: 0 auto; padding: 0 32px;
-  display: flex; align-items: center; gap: 4px; height: 56px;
+  display: flex; align-items: center; gap: 4px; height: var(--navh);
 }
 .wordmark {
   margin-right: 28px; font-size: 14.5px; font-weight: 700;
@@ -938,8 +941,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
    corner of the You page; nothing appears on Home or Practice, and nothing
    appears at all when the build has no VITE_SYNC_API. */
 
-/* Pushed to the right-hand end of the nav row. */
-.acct { position: relative; margin-left: auto; }
+.acct { position: relative; }
 
 .acct-badge {
   display: inline-flex; align-items: center; gap: 8px;
@@ -1036,7 +1038,15 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .acct-label-sm { display: none; }
 
 @media (max-width: 640px) {
-  .acct-panel { width: min(340px, calc(100vw - 40px)); }
+  /* Centred on the viewport rather than hung off the badge. The badge is no
+     longer the last thing in the nav row (the GitHub link is), so anchoring the
+     panel to its right edge pushed it visibly left of centre. Fixed rather than
+     absolute because the nav does not scroll. */
+  .acct-panel {
+    position: fixed; top: calc(var(--navh) + 8px);
+    left: 50%; right: auto; transform: translateX(-50%);
+    width: min(340px, calc(100vw - 24px));
+  }
   /* Swap the long label for the short one rather than dropping it: a bare dot
      says nothing about there being a sign-in at all. */
   .acct-label { display: none; }
@@ -1053,10 +1063,12 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .about-link:hover { color: var(--accent-dark); }
 /* Nav row, right of the sync badge. Icon only: the row is already four items
    wide and a phone has about 70px spare. */
+/* First item of the right-hand group, so it carries the auto margin that pushes
+   itself and the sync badge to the end of the nav row. */
 .ghlink {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; margin-left: 6px; border-radius: var(--r-sm);
-  color: var(--ink-2); text-decoration: none;
+  width: 34px; height: 34px; margin-left: auto; margin-right: 8px;
+  border-radius: var(--r-sm); color: var(--ink-2); text-decoration: none;
 }
 .ghlink:hover { background: var(--bg-soft); color: var(--ink); }
 
@@ -1095,8 +1107,15 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .topbar-center { gap: 2px; }
   .clock { font-size: 17px; }
   .hide-btn { padding: 0 10px; font-size: 11px; border-width: 1px; }
-  .topbar-right { gap: 6px; }
-  .tool { font-size: 9.5px; padding: 2px; gap: 1px; line-height: 1.2; max-width: 58px; }
+  /* Two things at once. Centring the row stops the label-less Highlights tool
+     floating above everything now that its text is hidden, and the min-height
+     keeps every tool the same box height so their GLYPHS still share a line
+     instead of the label-less one dropping to its own centre. */
+  .topbar-right { gap: 6px; align-items: center; }
+  .tool {
+    font-size: 9.5px; padding: 2px; gap: 1px; line-height: 1.2; max-width: 58px;
+    min-height: 34px; justify-content: flex-start;
+  }
   .tool-glyphs { height: 18px; }
 
   /* Question band and choices. */

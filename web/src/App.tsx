@@ -12,6 +12,7 @@ import { Review } from './components/Review'
 import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
 import { Icon } from './components/Icon'
+import { Mark } from './components/Mark'
 import { formatClock, useQuestionTimer } from './lib/useTimer'
 import * as sync from './lib/sync'
 import type {
@@ -227,7 +228,10 @@ export default function App() {
         ) : null}
         <nav className="tabs">
           <div className="tabs-inner">
-            <span className="wordmark">Bluebank</span>
+            <span className="brand">
+              <Mark size={22} />
+              <span className="wordmark">Bluebank</span>
+            </span>
             <button className={view === 'home' ? 'tab on' : 'tab'}
                     onClick={() => setView('home')}>Practice</button>
             <button className={view === 'review' ? 'tab on' : 'tab'}

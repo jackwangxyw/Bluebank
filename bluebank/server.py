@@ -74,6 +74,11 @@ def _set(conn, query, body):
     return {"count": len(rows), "questions": rows}
 
 
+@Api.route("GET", r"/api/mistakes")
+def _mistakes(conn, query, body):
+    return {"question_ids": session.logged_question_ids(conn)}
+
+
 @Api.route("GET", r"/api/questions/([^/]+)/attempts")
 def _attempts(conn, query, body, question_id):
     return {"attempts": session.attempts_for(conn, question_id)}

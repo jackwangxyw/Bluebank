@@ -521,6 +521,16 @@ class TestMistakeLog(unittest.TestCase):
         self.assertEqual(got["tags"], [])
         self.assertEqual(got["note"], "ran out of time")
 
+    def test_logged_ids_lists_only_questions_with_a_log(self):
+        # Review's "has a note" filter reads this up front. Reading it per row
+        # as rows were expanded made the filter only able to find notes on
+        # questions you had already opened.
+        self.assertEqual(session.logged_question_ids(self.conn), [])
+        session.set_mistake(self.conn, "q1", tags=["process"])
+        self.assertEqual(session.logged_question_ids(self.conn), ["q1"])
+        session.set_mistake(self.conn, "q1", tags=[], note="")
+        self.assertEqual(session.logged_question_ids(self.conn), [])
+
     def test_writing_twice_updates_rather_than_duplicating(self):
         session.set_mistake(self.conn, "q1", tags=["process"])
         session.set_mistake(self.conn, "q1", tags=["knowledge"])

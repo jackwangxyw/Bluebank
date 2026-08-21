@@ -105,6 +105,17 @@ def get_mistake(conn, question_id):
     }
 
 
+def logged_question_ids(conn):
+    """Questions that have a mistake log, as a list of ids.
+
+    Review's "has a note" filter needs this up front. Reading it per row as the
+    rows were expanded made the filter useless: it could only find notes on
+    questions you had already opened, which is the opposite of a filter.
+    """
+    rows = conn.execute("SELECT question_id FROM mistakes").fetchall()
+    return [r["question_id"] for r in rows]
+
+
 def set_mistake(conn, question_id, tags=None, note=None):
     """Write the log for one question. Empty tags and no note deletes the row.
 

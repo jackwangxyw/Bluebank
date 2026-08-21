@@ -44,6 +44,7 @@ export const flag = impl.flag
 export const saveAnnotations = impl.saveAnnotations
 export const explain = impl.explain
 export const attemptsFor = impl.attemptsFor
+export const loggedIds = impl.loggedIds
 export const saveMistake = impl.saveMistake
 export const reviewed = impl.reviewed
 export const stats = impl.stats

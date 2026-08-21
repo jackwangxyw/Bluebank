@@ -1,9 +1,13 @@
 /**
- * Every question you've answered, newest first.
+ * Every question you've answered.
  *
  * Not just the ones you got wrong: the point is being able to look back at how
  * long something took and what you were thinking, which matters on the ones you
  * got right slowly as much as the ones you missed.
+ *
+ * Grouped section, then day, then difficulty. Reading and Maths are studied
+ * separately, so they are separated here; the day says which sitting it was;
+ * and easy-to-hard within a day is the order you would want to skim.
  *
  * The list comes straight from the working set, which already carries the last
  * response, whether it was right, the seconds and the attempt count. Opening a
@@ -17,14 +21,20 @@ import { Explanation } from './Explanation'
 import { RichText } from './RichText'
 import { Icon } from './Icon'
 import type {
-  Annotation, Attempt, GradeResult, Mistake, MistakeTag, Question, SetItem,
+  Annotation, Attempt, GradeResult, Mistake, MistakeTag, Question, Section, SetItem,
 } from '../types'
 
 const TAG_LABEL: Record<MistakeTag, string> = {
   process: 'Process', silly: 'Silly', knowledge: 'Knowledge', other: 'Other',
 }
 
+const SECTION_LABEL: Record<Section, string> = {
+  RW: 'Reading and Writing', MATH: 'Math',
+}
+
 const DIFFICULTY: Record<string, string> = { E: 'Easy', M: 'Medium', H: 'Hard' }
+/** Easy first, hard last. */
+const DIFFICULTY_RANK: Record<string, number> = { E: 0, M: 1, H: 2 }
 
 /** "1m 20s", because 80s is harder to read at a glance. */
 function duration(seconds: number | null | undefined): string {
@@ -33,7 +43,7 @@ function duration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-/** Day headings, so a long list reads as sessions rather than one wall. */
+/** Day headings, so a long history reads as sittings rather than one wall. */
 function dayKey(ts: number | null): string {
   if (!ts) return 'Earlier'
   const then = new Date(ts * 1000)
@@ -52,10 +62,10 @@ const clock = (ts: number | null) => (ts
     { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   : '')
 
-type Filter = 'all' | 'wrong' | 'logged'
+type Filter = 'all' | 'incorrect' | 'logged'
 
 const FILTERS: [Filter, string][] = [
-  ['all', 'All'], ['wrong', 'Got wrong'], ['logged', 'Has a note'],
+  ['all', 'All'], ['incorrect', 'Incorrect'], ['logged', 'Has a note'],
 ]
 
 interface Props {
@@ -90,6 +100,11 @@ export function Review({ onPractice }: Props) {
     api.reviewed()
       .then((d) => setItems(d.questions))
       .catch((e: Error) => setError(e.message))
+    // Up front, not as rows are opened: a filter that only knows about what you
+    // already clicked is not a filter.
+    api.loggedIds()
+      .then((d) => setLogged(new Set(d.question_ids)))
+      .catch(() => { /* the filter degrades to empty, the page still works */ })
   }, [])
 
   if (error) return <div className="review"><p className="review-empty">{error}</p></div>
@@ -108,26 +123,41 @@ export function Review({ onPractice }: Props) {
   }
 
   const shown = items.filter((i) => (
-    filter === 'wrong' ? i.last_correct !== 1
+    filter === 'incorrect' ? i.last_correct !== 1
       : filter === 'logged' ? logged.has(i.id)
         : true))
 
-  const groups: { label: string; rows: SetItem[] }[] = []
+  // Section, then day, then easy to hard. The list arrives newest first, so the
+  // days keep that order simply by being met in turn.
+  const sections: {
+    section: Section
+    days: { label: string; rows: SetItem[] }[]
+  }[] = []
   for (const item of shown) {
+    let group = sections.find((s) => s.section === item.section)
+    if (!group) { group = { section: item.section, days: [] }; sections.push(group) }
     const label = dayKey(item.answered_at)
-    const last = groups[groups.length - 1]
-    if (last && last.label === label) last.rows.push(item)
-    else groups.push({ label, rows: [item] })
+    let day = group.days.find((d) => d.label === label)
+    if (!day) { day = { label, rows: [] }; group.days.push(day) }
+    day.rows.push(item)
+  }
+  sections.sort((a, b) => (a.section === 'RW' ? -1 : 1) - (b.section === 'RW' ? -1 : 1))
+  for (const group of sections) {
+    for (const day of group.days) {
+      day.rows.sort((a, b) => (
+        (DIFFICULTY_RANK[a.difficulty] ?? 9) - (DIFFICULTY_RANK[b.difficulty] ?? 9)
+        || (b.answered_at ?? 0) - (a.answered_at ?? 0)))
+    }
   }
 
-  const right = items.filter((i) => i.last_correct === 1).length
+  const correct = items.filter((i) => i.last_correct === 1).length
   const total = items.reduce((sum, i) => sum + (i.last_seconds ?? 0), 0)
 
   return (
     <div className="review">
       <h1 className="about-h1">Review</h1>
       <p className="review-sub">
-        {items.length.toLocaleString()} answered · {right.toLocaleString()} right ·{' '}
+        {items.length.toLocaleString()} answered · {correct.toLocaleString()} correct ·{' '}
         {duration(Math.round(total))} spent
       </p>
 
@@ -140,48 +170,49 @@ export function Review({ onPractice }: Props) {
       </div>
 
       {!shown.length ? (
-        <p className="review-empty">
-          {filter === 'logged'
-            ? 'Open a few questions first: notes are read as you expand them.'
-            : 'Nothing matches that filter.'}
-        </p>
+        <p className="review-empty">Nothing matches this filter.</p>
       ) : null}
 
-      {groups.map((group) => (
-        <section key={group.label} className="review-group">
-          <h2 className="review-day">{group.label}</h2>
-          <ul className="review-list">
-            {group.rows.map((item) => (
-              <li key={item.id}
-                  className={open === item.id ? 'review-item open' : 'review-item'}>
-                <button className="review-row"
-                        aria-expanded={open === item.id}
-                        onClick={() => setOpen(open === item.id ? null : item.id)}>
-                  <span className={`review-badge ${item.last_correct === 1 ? 'right' : 'wrong'}`}>
-                    {item.last_correct === 1 ? 'Right' : 'Wrong'}
-                  </span>
-                  <span className="review-main">
-                    <span className="review-skill">{item.skill_name}</span>
-                    <span className="review-meta">
-                      {item.domain_name} · {DIFFICULTY[item.difficulty] ?? item.difficulty}
-                    </span>
-                  </span>
-                  <span className="review-nums">
-                    <span className="review-time">{duration(item.last_seconds)}</span>
-                    {item.attempt_count > 1 ? (
-                      <span className="review-tries">{item.attempt_count} tries</span>
+      {sections.map((group) => (
+        <section key={group.section} className="review-section">
+          <h2 className="review-sectionhead">{SECTION_LABEL[group.section]}</h2>
+          {group.days.map((day) => (
+            <div key={day.label} className="review-group">
+              <h3 className="review-day">{day.label}</h3>
+              <ul className="review-list">
+                {day.rows.map((item) => (
+                  <li key={item.id}
+                      className={open === item.id ? 'review-item open' : 'review-item'}>
+                    <button className="review-row"
+                            aria-expanded={open === item.id}
+                            onClick={() => setOpen(open === item.id ? null : item.id)}>
+                      <span className={`review-badge ${item.last_correct === 1 ? 'right' : 'wrong'}`}>
+                        {item.last_correct === 1 ? 'Correct' : 'Incorrect'}
+                      </span>
+                      <span className="review-main">
+                        <span className="review-skill">{item.skill_name}</span>
+                        <span className="review-meta">
+                          {item.domain_name} · {DIFFICULTY[item.difficulty] ?? item.difficulty}
+                        </span>
+                      </span>
+                      <span className="review-nums">
+                        <span className="review-time">{duration(item.last_seconds)}</span>
+                        {item.attempt_count > 1 ? (
+                          <span className="review-tries">{item.attempt_count} tries</span>
+                        ) : null}
+                      </span>
+                      <Icon name={open === item.id ? 'chevron-up' : 'chevron-down'}
+                            size={16} strokeWidth={2.2} />
+                    </button>
+                    {open === item.id ? (
+                      <Detail id={item.id} item={item} onPractice={onPractice}
+                              onLogged={markLogged} />
                     ) : null}
-                  </span>
-                  <Icon name={open === item.id ? 'chevron-up' : 'chevron-down'}
-                        size={16} strokeWidth={2.2} />
-                </button>
-                {open === item.id ? (
-                  <Detail id={item.id} item={item} onPractice={onPractice}
-                          onLogged={markLogged} />
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </section>
       ))}
     </div>
@@ -226,6 +257,9 @@ function Detail({ id, item, onPractice, onLogged }: {
   if (error) return <p className="review-empty">{error}</p>
   if (!data || !result) return <p className="review-empty">Loading…</p>
 
+  const hasLog = Boolean(data.mistake
+    && (data.mistake.tags.length || data.mistake.note))
+
   return (
     <div className="review-detail">
       {/* The passage is the longest thing here and you usually remember it, so
@@ -249,7 +283,7 @@ function Detail({ id, item, onPractice, onLogged }: {
         <RichText html={data.question.stem_html} field="stem" annotations={[]} />
       </div>
 
-      <h3 className="review-h">Your attempts</h3>
+      <h4 className="review-h">Your attempts</h4>
       <div className="review-tablewrap">
         <table className="review-table">
           <thead>
@@ -261,7 +295,7 @@ function Detail({ id, item, onPractice, onLogged }: {
                 <td>{i + 1}</td>
                 <td>{clock(a.answered_at)}</td>
                 <td className="review-ans">{a.response || 'blank'}</td>
-                <td className={a.correct ? 'ok' : 'no'}>{a.correct ? 'Right' : 'Wrong'}</td>
+                <td className={a.correct ? 'ok' : 'no'}>{a.correct ? 'Correct' : 'Incorrect'}</td>
                 <td>{duration(a.seconds)}</td>
               </tr>
             ))}
@@ -269,21 +303,25 @@ function Detail({ id, item, onPractice, onLogged }: {
         </table>
       </div>
 
-      <h3 className="review-h">Mistake log</h3>
-      {data.mistake ? (
-        <div className="review-mistake">
-          {data.mistake.tags.length ? (
-            <div className="chips">
-              {data.mistake.tags.map((t) => (
-                <span key={t} className="chip on static">{TAG_LABEL[t]}</span>
-              ))}
-            </div>
-          ) : null}
-          {data.mistake.note ? <p className="review-note">{data.mistake.note}</p> : null}
-        </div>
-      ) : (
-        <p className="review-none">Nothing logged for this one.</p>
-      )}
+      {/* Nothing logged means nothing to show. An empty section was just noise
+          on every question you never wrote anything about. */}
+      {hasLog ? (
+        <>
+          <h4 className="review-h">Mistake log</h4>
+          <div className="review-mistake">
+            {data.mistake!.tags.length ? (
+              <div className="chips">
+                {data.mistake!.tags.map((t) => (
+                  <span key={t} className="chip on static">{TAG_LABEL[t]}</span>
+                ))}
+              </div>
+            ) : null}
+            {data.mistake!.note ? (
+              <p className="review-note">{data.mistake!.note}</p>
+            ) : null}
+          </div>
+        </>
+      ) : null}
 
       {data.annotations.length ? (
         <p className="review-anns">
@@ -292,7 +330,6 @@ function Detail({ id, item, onPractice, onLogged }: {
         </p>
       ) : null}
 
-      <h3 className="review-h">Explanation</h3>
       <Explanation result={result} question={data.question}
                    seconds={item.last_seconds ?? 0} startOpen />
 

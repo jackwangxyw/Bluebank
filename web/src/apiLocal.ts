@@ -297,6 +297,14 @@ export async function reviewed(): Promise<{ questions: SetItem[] }> {
   return { questions }
 }
 
+/** Ids of every question with a mistake log, for Review's filter. */
+export async function loggedIds(): Promise<{ question_ids: string[] }> {
+  const rows = await store.loadAllMistakes()
+  return {
+    question_ids: rows.filter((m) => !store.isEmptyMistake(m)).map((m) => m.question_id),
+  }
+}
+
 /** Every attempt at one question, oldest first. */
 export async function attemptsFor(id: string): Promise<{ attempts: store.Attempt[] }> {
   const c = await boot()

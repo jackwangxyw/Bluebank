@@ -59,6 +59,11 @@ export function question(id: string) {
   )
 }
 
+/** Ids of every question with a mistake log, for Review's filter. */
+export function loggedIds() {
+  return call<{ question_ids: string[] }>('/api/mistakes')
+}
+
 /** Every attempt at one question, oldest first. */
 export function attemptsFor(id: string) {
   return call<{ attempts: Attempt[] }>(

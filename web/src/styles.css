@@ -1240,8 +1240,15 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .review-filter { margin-bottom: 10px; }
 .review-empty { margin: 20px 0; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
 
-/* Day headings turn a long list into sessions. */
-.review-group { margin-top: 22px; }
+/* Section, then day. Reading and Maths are studied separately, so the top
+   level splits them; the day says which sitting it was. */
+.review-section { margin-top: 30px; }
+.review-sectionhead {
+  margin: 0 0 4px; padding-bottom: 8px;
+  font-size: 17px; font-weight: 650; letter-spacing: -.015em; color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+}
+.review-group { margin-top: 16px; }
 .review-day {
   margin: 0 0 2px; padding-bottom: 6px;
   font-size: 12.5px; font-weight: 650; color: var(--muted);
@@ -1279,7 +1286,21 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .review-tries { font-size: 11.5px; color: var(--muted); }
 
 /* ---- one expanded question ---- */
-.review-detail { padding: 6px 8px 26px; }
+/* Roomy left and right: this is a reading panel, not a table row. */
+.review-detail { padding: 10px 26px 30px; }
+
+/* Sans everywhere in here except the question itself. The explanation is prose
+   about the question rather than part of it, so it reads as interface. */
+.review-detail, .review-detail :not(.review-passage):not(.review-passage *):not(.review-stem):not(.review-stem *) {
+  font-family: var(--sans);
+}
+.review-detail .review-passage, .review-detail .review-passage *,
+.review-detail .review-stem, .review-detail .review-stem * {
+  font-family: var(--serif);
+}
+/* The panel already says what this is, and the rule under it read as a stray
+   divider rather than a section break. */
+.review-detail .explain { border-top: none; margin-top: 18px; padding-top: 0; }
 .review-h {
   margin: 22px 0 8px; font-size: 12.5px; font-weight: 650; color: var(--muted);
 }
@@ -1307,10 +1328,9 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 }
 .review-table td.ok { color: var(--green); font-weight: 600; }
 .review-table td.no { color: var(--red); font-weight: 600; }
-.review-ans { font-family: var(--serif); font-size: 14px; color: var(--ink); }
+.review-ans { font-size: 14px; font-weight: 600; color: var(--ink); }
 
 .review-mistake { margin: 0; }
-.review-none { margin: 0; font-size: 13px; color: var(--muted); }
 .review-note {
   margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--line-2);
   font-size: 13.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap;
@@ -1324,5 +1344,5 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .reviewcard { padding: 14px; }
   .review-row { padding: 12px 4px; gap: 9px; }
   .review-badge { width: 50px; font-size: 10.5px; }
-  .review-detail { padding: 6px 4px 22px; }
+  .review-detail { padding: 10px 14px 24px; }
 }

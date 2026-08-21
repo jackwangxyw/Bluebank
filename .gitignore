@@ -14,3 +14,6 @@ venv/
 
 # Bluebook reference screenshots: local only, never committed.
 reference/
+
+# Working handoff notes: local only.
+HANDOFF.md

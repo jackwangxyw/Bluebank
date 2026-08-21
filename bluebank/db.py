@@ -1,6 +1,7 @@
 """SQLite schema and connection."""
 import hashlib
 import sqlite3
+import uuid
 from pathlib import Path
 
 DB_PATH = Path("data/bluebank.db")
@@ -34,7 +35,11 @@ CREATE INDEX IF NOT EXISTS idx_q_domain     ON questions(domain, retired);
 CREATE INDEX IF NOT EXISTS idx_q_difficulty ON questions(difficulty, retired);
 
 CREATE TABLE IF NOT EXISTS attempts (
-  id          INTEGER PRIMARY KEY,
+  -- A uuid, not a rowid alias. An INTEGER PRIMARY KEY counts per database, so
+  -- two machines both mint id 5 and merging their history by union silently
+  -- drops one of them. The browser build already mints uuids here
+  -- (web/src/apiLocal.ts), so this is also what makes the two sides agree.
+  id          TEXT PRIMARY KEY,
   question_id TEXT NOT NULL REFERENCES questions(id),
   answered_at INTEGER NOT NULL,      -- unix seconds
   response    TEXT,
@@ -118,6 +123,22 @@ def shuffle_key(question_id):
     return _mix(h) & 0x7FFFFFFFFFFFFFFF
 
 
+def new_attempt_id():
+    """A globally unique attempt id.
+
+    Matches what the static build mints with crypto.randomUUID(), so a history
+    exported from either backend can be merged into the other by union on this
+    id without two machines colliding.
+    """
+    return str(uuid.uuid4())
+
+
+def _attempts_id_is_legacy_integer(conn):
+    """True if this database predates the uuid attempt ids."""
+    return any(c["name"] == "id" and c["type"] == "INTEGER"
+               for c in conn.execute("PRAGMA table_info(attempts)"))
+
+
 def connect(path=None):
     path = Path(path or DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -125,5 +146,32 @@ def connect(path=None):
     conn.row_factory = sqlite3.Row
     conn.create_function("shuffle_key", 1, shuffle_key, deterministic=True)
     conn.execute("PRAGMA foreign_keys = ON")
+
+    # Rebuild a pre-uuid attempts table. The old rows are parked in
+    # attempts_legacy rather than read into memory first, so an interrupted
+    # migration leaves the history on disk instead of losing it. The two
+    # indexes have to be dropped by name or CREATE INDEX IF NOT EXISTS below
+    # sees the ones that followed the rename and leaves the new table
+    # unindexed.
+    migrating = _attempts_id_is_legacy_integer(conn)
+    if migrating:
+        conn.executescript("""
+            DROP INDEX IF EXISTS idx_a_question;
+            DROP INDEX IF EXISTS idx_a_time;
+            ALTER TABLE attempts RENAME TO attempts_legacy;
+        """)
+
     conn.executescript(SCHEMA)
+
+    if migrating:
+        rows = conn.execute(
+            "SELECT question_id, answered_at, response, correct, seconds"
+            " FROM attempts_legacy ORDER BY id").fetchall()
+        conn.executemany(
+            "INSERT INTO attempts (id, question_id, answered_at, response,"
+            " correct, seconds) VALUES (?,?,?,?,?,?)",
+            [(new_attempt_id(), *tuple(r)) for r in rows])
+        conn.execute("DROP TABLE attempts_legacy")
+        conn.commit()
+
     return conn

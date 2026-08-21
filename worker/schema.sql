@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS users (sub TEXT PRIMARY KEY, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, sub TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_sessions_sub ON sessions(sub);
+CREATE TABLE IF NOT EXISTS attempts (sub TEXT NOT NULL, id TEXT NOT NULL, question_id TEXT NOT NULL, answered_at INTEGER NOT NULL, response TEXT, correct INTEGER NOT NULL, seconds INTEGER, seq INTEGER NOT NULL, PRIMARY KEY (sub, id));
+CREATE INDEX IF NOT EXISTS idx_attempts_seq ON attempts(sub, seq);
+CREATE TABLE IF NOT EXISTS marks (sub TEXT NOT NULL, question_id TEXT NOT NULL, flagged INTEGER NOT NULL, updated_at INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (sub, question_id));
+CREATE INDEX IF NOT EXISTS idx_marks_seq ON marks(sub, seq);
+CREATE TABLE IF NOT EXISTS annotations (sub TEXT NOT NULL, question_id TEXT NOT NULL, items_json TEXT NOT NULL, updated_at INTEGER NOT NULL, seq INTEGER NOT NULL, PRIMARY KEY (sub, question_id));
+CREATE INDEX IF NOT EXISTS idx_annotations_seq ON annotations(sub, seq);
+CREATE TABLE IF NOT EXISTS cursors (sub TEXT PRIMARY KEY, seq INTEGER NOT NULL DEFAULT 0);

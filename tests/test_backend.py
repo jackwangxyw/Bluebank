@@ -1,9 +1,14 @@
 """Regression tests. Every case here is a real shape found in the bank, not a
 made-up example; the comment names the question it came from.
 """
+import os
+import shutil
+import sqlite3
+import tempfile
 import unittest
+import uuid
 
-from bluebank import db, grading, rationale
+from bluebank import db, grading, rationale, session
 
 
 class TestCanonical(unittest.TestCase):
@@ -251,6 +256,127 @@ class TestShuffleKey(unittest.TestCase):
         self.assertIn("MATH", first_20)
         self.assertIn("RW", first_20)
 
+
+# The pre-uuid attempts table, kept verbatim so the migration is tested against
+# the shape that is actually on disk rather than a paraphrase of it.
+LEGACY_ATTEMPTS_SCHEMA = """
+CREATE TABLE attempts (
+  id          INTEGER PRIMARY KEY,
+  question_id TEXT NOT NULL REFERENCES questions(id),
+  answered_at INTEGER NOT NULL,
+  response    TEXT,
+  correct     INTEGER NOT NULL,
+  seconds     INTEGER
+);
+CREATE INDEX idx_a_question ON attempts(question_id);
+CREATE INDEX idx_a_time     ON attempts(answered_at);
+"""
+
+# One SPR question, so attempts have something to reference under foreign_keys.
+INSERT_QUESTION = (
+    "INSERT INTO questions (id, source_path, section, domain, domain_name,"
+    " skill, skill_name, difficulty, type, stem_html, correct_json,"
+    " rationale_html, update_date)"
+    " VALUES ('q1','external_id','MATH','H','Algebra','H.A.','Linear',"
+    "'E','spr','stem','[\"4\"]','because',0)")
+
+
+class TestAttemptIds(unittest.TestCase):
+    """attempts.id is a uuid so two machines' histories can be merged by union.
+    An INTEGER PRIMARY KEY counts per database, so both would mint id 5 and one
+    of the two attempts would vanish in the merge.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "t.db")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _legacy_db(self, rows):
+        """A database as it stood before the migration, holding `rows` attempts.
+
+        Built by downgrading a real one rather than hand-writing a schema, so
+        the fixture cannot drift from db.SCHEMA in any way except the column
+        under test.
+        """
+        db.connect(self.path).close()
+        conn = sqlite3.connect(self.path)
+        conn.execute(INSERT_QUESTION)
+        conn.executescript("""
+            DROP INDEX IF EXISTS idx_a_question;
+            DROP INDEX IF EXISTS idx_a_time;
+            DROP TABLE attempts;
+        """ + LEGACY_ATTEMPTS_SCHEMA)
+        conn.executemany(
+            "INSERT INTO attempts (question_id, answered_at, response, correct,"
+            " seconds) VALUES (?,?,?,?,?)", rows)
+        conn.commit()
+        conn.close()
+
+    def test_ids_are_uuids_not_a_counter(self):
+        first, second = db.new_attempt_id(), db.new_attempt_id()
+        self.assertNotEqual(first, second)
+        self.assertEqual(uuid.UUID(first).version, 4)
+
+    def test_fresh_database_declares_id_as_text(self):
+        conn = db.connect(self.path)
+        types = {c["name"]: c["type"]
+                 for c in conn.execute("PRAGMA table_info(attempts)")}
+        self.assertEqual(types["id"], "TEXT")
+        conn.close()
+
+    def test_migration_preserves_every_row_and_rewrites_the_ids(self):
+        rows = [("q1", 1787198353, "A", 1, 8),
+                ("q1", 1787198400, "B", 0, 41),
+                ("q1", 1787198500, None, 0, None)]
+        self._legacy_db(rows)
+
+        conn = db.connect(self.path)
+        migrated = conn.execute(
+            "SELECT id, question_id, answered_at, response, correct, seconds"
+            " FROM attempts ORDER BY answered_at").fetchall()
+
+        self.assertEqual([tuple(r)[1:] for r in migrated], rows)
+        ids = [r["id"] for r in migrated]
+        self.assertEqual(len({uuid.UUID(i) for i in ids}), 3)
+        # The scratch table must not survive, or the next connect() sees it.
+        self.assertEqual(
+            conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE"
+                         " name = 'attempts_legacy'").fetchone()[0], 0)
+        conn.close()
+
+    def test_migration_restores_both_indexes(self):
+        # The indexes follow the table through the rename, so CREATE INDEX IF
+        # NOT EXISTS would quietly leave the new table unindexed.
+        self._legacy_db([("q1", 1787198353, "A", 1, 8)])
+        conn = db.connect(self.path)
+        indexed = {r["name"]: r["tbl_name"] for r in conn.execute(
+            "SELECT name, tbl_name FROM sqlite_master WHERE type = 'index'")}
+        self.assertEqual(indexed.get("idx_a_question"), "attempts")
+        self.assertEqual(indexed.get("idx_a_time"), "attempts")
+        conn.close()
+
+    def test_migration_is_not_repeated(self):
+        self._legacy_db([("q1", 1787198353, "A", 1, 8)])
+        conn = db.connect(self.path)
+        before = conn.execute("SELECT id FROM attempts").fetchone()["id"]
+        conn.close()
+
+        conn = db.connect(self.path)
+        self.assertEqual(
+            [r["id"] for r in conn.execute("SELECT id FROM attempts")], [before])
+        conn.close()
+
+    def test_submit_writes_a_uuid(self):
+        conn = db.connect(self.path)
+        conn.execute(INSERT_QUESTION)
+        conn.commit()
+        session.submit(conn, "q1", "4")
+        stored = conn.execute("SELECT id FROM attempts").fetchone()["id"]
+        self.assertEqual(uuid.UUID(stored).version, 4)
+        conn.close()
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

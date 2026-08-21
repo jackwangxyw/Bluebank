@@ -5,7 +5,7 @@ import json
 import random
 import time
 
-from . import grading
+from . import db, grading
 
 
 def _row_to_question(row):
@@ -64,9 +64,10 @@ def submit(conn, question_id, response, seconds=None, record=True):
 
     if record:
         conn.execute(
-            "INSERT INTO attempts (question_id, answered_at, response, correct, seconds)"
-            " VALUES (?,?,?,?,?)",
-            (question_id, int(time.time()), None if response is None else str(response),
+            "INSERT INTO attempts (id, question_id, answered_at, response, correct, seconds)"
+            " VALUES (?,?,?,?,?,?)",
+            (db.new_attempt_id(), question_id, int(time.time()),
+             None if response is None else str(response),
              int(result["correct"]), seconds))
         conn.commit()
     return result

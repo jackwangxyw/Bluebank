@@ -27,6 +27,7 @@ import { normaliseQuestion, type Stub } from './lib/normalize'
 import { byShuffleKey } from './lib/shuffle'
 import * as cb from './lib/cbApi'
 import * as store from './lib/store'
+import * as sync from './lib/sync'
 import type {
   Annotation, Filters, GradeResult, Question, SetItem, Stats, StoredQuestion, TaxonomyRow,
 } from './types'
@@ -228,6 +229,7 @@ export async function answer(
     seconds,
   }
   await store.saveAttempt(attempt)
+  sync.track('attempt', attempt.id)
   const list = c.attempts.get(id)
   if (list) list.push(attempt)
   else c.attempts.set(id, [attempt])
@@ -238,6 +240,7 @@ export async function answer(
 export async function flag(id: string, flagged: boolean): Promise<{ flagged: boolean }> {
   const c = await boot()
   await store.saveMark(id, flagged)
+  sync.track('mark', id)
   if (flagged) c.flagged.add(id)
   else c.flagged.delete(id)
   return { flagged }
@@ -248,6 +251,7 @@ export async function saveAnnotations(id: string, annotations: Annotation[]):
   // Ids are assigned here rather than by a database autoincrement.
   const items = annotations.map((a, i) => ({ ...a, id: a.id ?? i + 1 }))
   await store.saveAnnotations(id, items)
+  sync.track('annotation', id)
   return { annotations: items }
 }
 

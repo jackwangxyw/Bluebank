@@ -932,3 +932,123 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .nav-grid { grid-template-columns: repeat(6, 1fr); }
   .pane { --pane-pad: 20px; padding: 20px 0 50px; }
 }
+
+/* ============================================================ account + about
+   The account badge is the only sync affordance in the app. It sits in the
+   corner of the You page; nothing appears on Home or Practice, and nothing
+   appears at all when the build has no VITE_SYNC_API. */
+
+.page-head {
+  max-width: 900px; margin: 0 auto; padding: 20px 32px 0;
+  display: flex; justify-content: flex-end;
+}
+.acct { position: relative; }
+
+.acct-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 10px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--bg);
+  font: inherit; font-size: 12.5px; color: var(--muted);
+  cursor: pointer; transition: border-color .12s, color .12s;
+}
+.acct-badge:hover { border-color: var(--line-2); color: var(--ink-2); }
+
+.acct-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--line-2);
+}
+.acct-badge.synced  .acct-dot, .acct-dot.synced  { background: var(--green); }
+.acct-badge.pending .acct-dot, .acct-dot.pending { background: var(--yellow); }
+.acct-badge.off     .acct-dot, .acct-dot.off     { background: var(--line-2); }
+
+/* Syncing is a ring rather than a filled dot, so the three resting states stay
+   readable as colour alone and motion means exactly one thing. */
+.acct-badge.syncing .acct-dot, .acct-dot.syncing {
+  background: none; border: 1.5px solid var(--line-2);
+  border-top-color: var(--accent); animation: acct-spin .7s linear infinite;
+}
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .acct-badge.syncing .acct-dot, .acct-dot.syncing {
+    animation: none; background: var(--accent); border-color: var(--accent);
+  }
+}
+
+.acct-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40;
+  width: 340px; padding: 18px 18px 16px;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+  text-align: left;
+}
+.acct-h {
+  margin: 0 0 6px; font-size: 15px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink);
+}
+.acct-p { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.acct-status {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 12px; font-size: 13px; color: var(--ink-2);
+}
+.acct-note {
+  margin: 0 0 14px; padding: 12px; border-radius: var(--r-md);
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.acct-note p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.acct-note p:last-child { margin-bottom: 0; }
+.acct-gbtn { display: flex; justify-content: center; min-height: 44px; }
+.acct-fine { margin: 12px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.acct-err {
+  margin: 10px 0 0; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--red-soft); color: var(--red); font-size: 12.5px; line-height: 1.45;
+}
+
+.acct-actions { display: flex; gap: 8px; }
+.acct-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg); font: inherit; font-size: 12.5px; font-weight: 550;
+  color: var(--ink-2); cursor: pointer;
+}
+.acct-btn:hover:not(:disabled) { border-color: var(--line-2); background: var(--bg-soft); }
+.acct-btn:disabled { opacity: .5; cursor: default; }
+.acct-btn.danger { border-color: var(--red); color: var(--red); }
+.acct-btn.danger:hover:not(:disabled) { background: var(--red-soft); }
+
+.acct-danger { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.acct-link {
+  padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px;
+  color: var(--muted); text-decoration: underline; text-underline-offset: 2px;
+  cursor: pointer;
+}
+.acct-link:hover { color: var(--red); }
+
+/* ---- about ---- */
+.about { max-width: 720px; margin: 0 auto; padding: 48px 32px 96px; }
+.about-block { margin-bottom: 44px; }
+.about-block:last-child { margin-bottom: 0; }
+.about-h1 {
+  margin: 0 0 12px; font-size: 34px; font-weight: 700;
+  letter-spacing: -.03em; color: var(--ink);
+}
+.about-h2 {
+  margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  font-size: 13px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted);
+}
+.about-lead { margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: var(--ink-2); }
+.about-p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted); }
+.about-list { margin: 0; }
+.about-list > div { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.about-list > div:last-child { border-bottom: 0; }
+.about-list dt {
+  margin: 0 0 5px; font-size: 14px; font-weight: 650; color: var(--ink);
+}
+.about-list dd { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+.about-list dd strong { color: var(--ink-2); font-weight: 650; }
+
+@media (max-width: 640px) {
+  .acct-panel { width: min(340px, calc(100vw - 40px)); }
+  .page-head { padding: 16px 20px 0; }
+  .about { padding: 32px 20px 64px; }
+}

@@ -2,12 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as api from './api'
 import { Home } from './components/Home'
 import { Stats as StatsPage } from './components/Stats'
+import { About } from './components/About'
+import { AccountBadge } from './components/Account'
 import { Navigator } from './components/Navigator'
 import { Notes } from './components/Notes'
 import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
 import { Icon } from './components/Icon'
 import { formatClock, useQuestionTimer } from './lib/useTimer'
+import * as sync from './lib/sync'
 import type {
   Annotation, Filters, GradeResult, Question, SetItem, Stats, TaxonomyRow,
 } from './types'
@@ -26,7 +29,7 @@ const DIRECTIONS = {
 } as const
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'stats' | 'practice'>('home')
+  const [view, setView] = useState<'home' | 'stats' | 'about' | 'practice'>('home')
 
   const [taxonomy, setTaxonomy] = useState<TaxonomyRow[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -63,6 +66,10 @@ export default function App() {
       .then((d) => { setTaxonomy(d.taxonomy); setStats(d.stats) })
       .catch((e: Error) => setError(e.message))
   }, [])
+
+  // Starts the sync loop if a session already exists. No-op when signed out or
+  // when the build has no sync configured, so the localhost path is untouched.
+  useEffect(() => { sync.start() }, [])
 
   useEffect(() => {
     let stale = false
@@ -179,7 +186,9 @@ export default function App() {
             <button className={view === 'home' ? 'tab on' : 'tab'}
                     onClick={() => setView('home')}>Practice</button>
             <button className={view === 'stats' ? 'tab on' : 'tab'}
-                    onClick={() => setView('stats')}>Stats</button>
+                    onClick={() => setView('stats')}>You</button>
+            <button className={view === 'about' ? 'tab on' : 'tab'}
+                    onClick={() => setView('about')}>About</button>
           </div>
         </nav>
 
@@ -187,8 +196,15 @@ export default function App() {
           <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
                 loading={listLoading} onChange={setFilters}
                 onStart={() => { setIndex(0); setView('practice') }} />
+        ) : view === 'about' ? (
+          <div className="page">
+            <About />
+          </div>
         ) : (
           <div className="page">
+            <div className="page-head">
+              <AccountBadge />
+            </div>
             <StatsPage taxonomy={taxonomy}
                        onPractice={(next) => {
                          setFilters(next)

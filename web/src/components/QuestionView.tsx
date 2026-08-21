@@ -4,6 +4,30 @@ import { Explanation } from './Explanation'
 import { BookmarkFilled, Icon, SplitHandle } from './Icon'
 import type { Annotation, GradeResult, Question } from '../types'
 
+/**
+ * Below this the two panes stack instead of sitting side by side.
+ *
+ * Measured, not guessed: at 390px the split gave a 195px passage column and a
+ * 191px question column, which puts answer choices at two or three words a line
+ * and made single choices over 900px tall. It has to match the breakpoint in
+ * styles.css.
+ */
+const STACK_BELOW = 820
+
+function useStacked(): boolean {
+  const query = `(max-width: ${STACK_BELOW - 1}px)`
+  const [stacked, setStacked] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = () => setStacked(mq.matches)
+    // No immediate onChange(): useState already read matchMedia, and calling it
+    // here just forces a second render on every mount.
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [query])
+  return stacked
+}
+
 interface Props {
   question: Question
   number: number
@@ -43,6 +67,7 @@ export function QuestionView(props: Props) {
   const [pending, setPending] = useState<PendingSelection | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
   const [split, setSplit] = useState(50)
+  const stacked = useStacked()
   const dragging = useRef(false)
 
   const answered = result !== null
@@ -215,7 +240,15 @@ export function QuestionView(props: Props) {
 
   return (
     <div className="qview">
-      {isSplit ? (
+      {isSplit && stacked ? (
+        // No inline grid-template-columns and no divider: the columns are a
+        // desktop affordance, and a 4px drag handle is not usable by thumb.
+        // Leaving the inline style on would beat any media query anyway.
+        <div className="split stacked">
+          <div className="pane pane-stimulus">{stimulus}</div>
+          <div className="pane">{prompt}</div>
+        </div>
+      ) : isSplit ? (
         <div className="split" style={{ gridTemplateColumns: `${split}% 4px 1fr` }}>
           <div className="pane">{stimulus}</div>
           <div className="divider" onMouseDown={startDrag}>

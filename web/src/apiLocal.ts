@@ -44,6 +44,18 @@ interface Cache {
 let cache: Cache | null = null
 let booting: Promise<Cache> | null = null
 
+const INDEX_AGE_KEY = 'index.fetchedAt'
+/**
+ * How long a cached index is trusted before it is re-read in the background.
+ *
+ * The index is what every count in the app is derived from, including "3,767
+ * questions" on Home. Without this it was fetched once, on the first ever visit,
+ * and then never again: College Board could add a hundred questions and the
+ * number would stay frozen on that device forever. Seven days is arbitrary but
+ * the bank changes a couple of times a year, so anything in that range is fine.
+ */
+const INDEX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
 /** Index first, bodies later. Everything below waits on this. */
 async function boot(): Promise<Cache> {
   if (cache) return cache
@@ -55,6 +67,15 @@ async function boot(): Promise<Cache> {
     if (!stubs.length) {
       stubs = await cb.fetchIndex()
       await store.saveIndex(stubs)
+      await store.setMeta(INDEX_AGE_KEY, Date.now())
+    } else {
+      // Stale index: refresh AFTER boot resolves, never before. Blocking here
+      // would put 1.7s on a cold start to pick up a change the bank makes about
+      // twice a year. The new count lands on the next visit.
+      const fetchedAt = (await store.getMeta<number>(INDEX_AGE_KEY)) ?? 0
+      if (Date.now() - fetchedAt > INDEX_MAX_AGE_MS) {
+        queueMicrotask(() => { void refreshIndex().catch(() => {}) })
+      }
     }
 
     const attempts = new Map<string, store.Attempt[]>()
@@ -80,6 +101,7 @@ async function boot(): Promise<Cache> {
 export async function refreshIndex(): Promise<number> {
   const stubs = await cb.fetchIndex()
   await store.saveIndex(stubs)
+  await store.setMeta(INDEX_AGE_KEY, Date.now())
   if (cache) cache.stubs = stubs
   return stubs.length
 }

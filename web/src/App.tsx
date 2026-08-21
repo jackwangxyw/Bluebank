@@ -229,7 +229,9 @@ export default function App() {
             <button className="backbtn" onClick={() => setView('home')} title="Go back">
               <Icon name="chevron-left" size={18} strokeWidth={2.2} />
             </button>
-            {setTitle}
+            {/* Wrapped so it can be truncated on a phone. A bare text node in a
+                flex row cannot take text-overflow. */}
+            <span className="section-name">{setTitle}</span>
           </div>
           <button className="ghostlink" onClick={() => setShowDirections((v) => !v)}>
             Directions

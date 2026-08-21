@@ -141,11 +141,12 @@ button { font-family: inherit; }
   transition: width .4s ease-out;
 }
 
-/* ---- small quiet section labels ---- */
+/* ---- section labels: sentence case, not the all-caps tracked micro-label
+   look, which reads as a dashboard template rather than as this site ---- */
 .label {
   margin: 0 0 14px;
-  font-size: 11px; font-weight: 700; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--muted);
+  font-size: 13px; font-weight: 650; letter-spacing: -.005em;
+  color: var(--ink-2);
 }
 
 /* ---- section cards ---- */
@@ -197,8 +198,7 @@ button { font-family: inherit; }
 .brk { flex-basis: 100%; height: 0; }
 .cap {
   flex-basis: 100%;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--muted); margin: 10px 0 -1px;
+  font-size: 12px; font-weight: 650; color: var(--ink-2); margin: 12px 0 1px;
 }
 .chips > .cap:first-child { margin-top: 2px; }
 .chip {
@@ -272,8 +272,7 @@ button { font-family: inherit; }
 .tile { background: var(--bg); padding: 20px 22px 18px; display: flex; flex-direction: column; }
 .tile-wide { grid-column: 1 / -1; }
 .tile-l {
-  font-size: 11px; font-weight: 700; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--muted);
+  font-size: 12.5px; font-weight: 550; color: var(--muted);
 }
 .tile-n {
   margin-top: 12px; font-size: 34px; font-weight: 700; letter-spacing: -.04em;
@@ -328,9 +327,8 @@ button { font-family: inherit; }
 /* Groups the bars under Reading and Writing / Math so the two halves of the
    test read separately instead of as one run of eight. */
 .dbar-group {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
-  text-transform: uppercase; color: var(--muted);
-  padding: 14px 0 6px;
+  font-size: 12.5px; font-weight: 650; color: var(--ink-2);
+  padding: 16px 0 6px;
 }
 .dbar-group:first-child { padding-top: 0; }
 .dbar {
@@ -612,13 +610,13 @@ button.row-name:hover svg { opacity: 1; }
 .verdict-time { color: var(--muted); font-size: 13.5px; margin-right: auto; font-variant-numeric: tabular-nums; }
 
 .explain-answer { display: flex; gap: 36px; flex-wrap: wrap; margin: 14px 0 20px; }
-.explain-answer .label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 2px; }
+.explain-answer .label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
 .accepted { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--green); }
 .yours { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--red); }
 
 .explain-choices { display: flex; flex-direction: column; gap: 14px; }
 .why { border-left: 2px solid var(--line-2); padding-left: 16px; }
-.why h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.why h4 { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .why-wrong { border-left-color: var(--red); }
 .why-right { border-left-color: var(--green); }
 .why > div { font-family: var(--serif); font-size: 16px; }
@@ -801,8 +799,7 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 }
 .note-swatch.sw-underline { background: var(--ink); }
 .note-where {
-  font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--muted);
+  font-size: 12px; font-weight: 600; color: var(--muted);
 }
 .note-del {
   margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
@@ -1024,8 +1021,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 }
 .about-h2 {
   margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
-  font-size: 13px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--muted);
+  font-size: 19px; font-weight: 650; letter-spacing: -.015em; color: var(--ink);
 }
 .about-lead { margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: var(--ink-2); }
 .about-p {
@@ -1034,8 +1030,109 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .about-p:last-child { margin-bottom: 0; }
 .about-p strong { color: var(--ink); font-weight: 650; }
 
+.acct-label-sm { display: none; }
+
 @media (max-width: 640px) {
   .acct-panel { width: min(340px, calc(100vw - 40px)); }
-  .acct-label { display: none; }   /* dot only; the nav row runs out of width */
+  /* Swap the long label for the short one rather than dropping it: a bare dot
+     says nothing about there being a sign-in at all. */
+  .acct-label { display: none; }
+  .acct-label-sm { display: inline; }
+  .acct-badge { padding: 5px 10px 5px 9px; gap: 6px; }
+  .tabs-inner { padding: 0 14px; gap: 0; }
+  .wordmark { margin-right: 12px; font-size: 14px; }
+  .tab { padding: 0 9px; font-size: 13.5px; }
   .about { padding: 32px 20px 64px; }
+}
+
+/* ---- about: link and the GitHub button ---- */
+.about-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.about-link:hover { color: var(--accent-dark); }
+.ghbtn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg); color: var(--ink-2);
+  font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.ghbtn:hover { border-color: var(--line-2); background: var(--bg-soft); color: var(--ink); }
+
+/* ==================================================== phone and small tablet
+   The practice view was built for a desktop split pane. Measured at 390px
+   before this block existed: a 195px passage column beside a 191px question
+   column, single answer choices over 900px tall, and 105px of header before any
+   question was visible. Everything here is about giving the question the screen.
+
+   The stacking itself is not done here. QuestionView writes
+   grid-template-columns inline, which no media query can beat, so it drops the
+   inline style and the divider and renders .split.stacked below 820px. Keep
+   STACK_BELOW there and this breakpoint in step. */
+@media (max-width: 819px) {
+  /* One scroll for the whole question. Two independently scrolling panes make
+     sense side by side and are horrible stacked, because the passage traps the
+     scroll before you reach the choices. */
+  .qview { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .split.stacked { grid-template-columns: minmax(0, 1fr); }
+  .split.stacked .pane { overflow: visible; padding: 16px 0 0; }
+  .split.stacked .pane-stimulus {
+    padding-bottom: 18px; margin-bottom: 2px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .single .pane { padding-top: 16px; }
+  .pane { --pane-pad: 16px; padding-bottom: 32px; }
+
+  /* Header: was 105px, with the title wrapping to two lines and the tool labels
+     wrapping under their glyphs. */
+  .topbar { padding: 6px 12px; gap: 8px; min-height: 0; }
+  .topbar-left { gap: 0; min-width: 0; }
+  .section-title { font-size: 14.5px; gap: 2px; min-width: 0; }
+  .section-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .backbtn { width: 20px; height: 20px; margin-left: -3px; }
+  .ghostlink { font-size: 12px; padding: 1px 3px; margin-left: -3px; }
+  .topbar-center { gap: 2px; }
+  .clock { font-size: 17px; }
+  .hide-btn { padding: 0 10px; font-size: 11px; border-width: 1px; }
+  .topbar-right { gap: 6px; }
+  .tool { font-size: 9.5px; padding: 2px; gap: 1px; line-height: 1.2; max-width: 58px; }
+  .tool-glyphs { height: 18px; }
+
+  /* Question band and choices. */
+  .q-head { gap: 8px; margin-bottom: 12px; padding-right: 6px; }
+  .q-num { min-width: 34px; height: 24px; font-size: 14px; }
+  .markbtn { font-size: 13px; gap: 5px; padding: 3px 4px; }
+  .q-meta { display: none; }
+  .passage, .stem, .choice-text, .figure, .dir-body { font-size: 16px; line-height: 1.55; }
+  .choices { gap: 9px; margin-top: 14px; }
+  .choice { gap: 9px; }
+  .choice-main { padding: 11px 13px; }
+
+  /* Footer: Back and Next were being pushed off the right edge. */
+  .bottombar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px 12px; }
+  .bottom-left { display: none; }   /* the wordmark is not worth a third of the bar */
+  .bottom-mid { justify-content: flex-start; min-width: 0; }
+  .navbtn { padding: 8px 11px; font-size: 13px; gap: 5px; }
+  .bottom-right { gap: 8px; }
+  .btn { padding: 8px 14px; font-size: 13.5px; }
+
+  /* Panels that assumed a wide viewport. */
+  .notes-panel { width: min(400px, 100vw); }
+  .dir-popup { top: 64px; width: min(680px, 94vw); }
+  .nav-popup { width: min(720px, 96vw); max-height: 60vh; }
+
+  /* Wide question tables scroll themselves rather than the page. */
+  .passage table, .stem table, .figure table { font-size: 14px; }
+  .passage img, .stem img, .figure img, .passage svg, .stem svg, .figure svg {
+    max-width: 100%; height: auto;
+  }
+}
+
+/* Narrow phones. */
+@media (max-width: 430px) {
+  .topbar-right { gap: 2px; }
+  .tool { max-width: 50px; font-size: 9px; }
+  .clock { font-size: 15.5px; }
+  .section-title { font-size: 13.5px; }
+  .navbtn { padding: 7px 9px; font-size: 12px; }
+  .btn { padding: 7px 11px; font-size: 12.5px; }
+  .passage, .stem, .choice-text, .figure, .dir-body { font-size: 15.5px; }
+  .pane { --pane-pad: 13px; }
 }

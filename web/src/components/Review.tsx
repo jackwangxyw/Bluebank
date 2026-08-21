@@ -40,10 +40,14 @@ const DIFFICULTY_RANK: Record<string, number> = { E: 0, M: 1, H: 2 }
  * Right first time, right eventually, and wrong are three different results.
  * The navigator grid has always drawn them as green / amber / red; this matches
  * it so the two views cannot disagree.
+ *
+ * "Retried" rather than "Correct after retry": the badge is a fixed-width pill
+ * in a row, and the longer phrase wrapped to three lines. The amber already
+ * says it was eventually right, and the row shows the attempt count beside it.
  */
 function verdict(item: SetItem): { cls: string; label: string } {
   if (item.last_correct !== 1) return { cls: 'wrong', label: 'Incorrect' }
-  if (item.attempt_count > 1) return { cls: 'retry', label: 'Correct after retry' }
+  if (item.attempt_count > 1) return { cls: 'retry', label: 'Retried' }
   return { cls: 'right', label: 'Correct' }
 }
 

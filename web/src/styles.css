@@ -1140,17 +1140,29 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   }
   .tabs-inner::-webkit-scrollbar { display: none; }
   .tabs-inner > * { flex: none; }
-  /* The mark stands in for the name. Four tabs, the sync badge and the full
-     wordmark do not fit together at 390px, and of the three the wordmark is the
-     one that is already in the browser tab and on every page of the site. */
+  /* One or the other, never both: the mark, the name, four tabs and the sync
+     badge do not fit together at 390px. The name wins, because a phone gives
+     you no other place to read what the site is called. The mark is still in
+     the browser tab. */
   .brand { margin-right: 10px; }
-  .wordmark { display: none; }
+  .mark { display: none; }
   .tab { padding: 0 6px; font-size: 13px; }
   .tab.on::after { left: 6px; right: 6px; }
   .ghlink { display: none; }
   /* The auto margin that pushes the right-hand group to the end lives on
      .ghlink, so it has to move when .ghlink does. */
   .acct { margin-left: auto; }
+}
+
+/* The name is 43px wider than the mark it replaced, which put 360px back into
+   the scrolling range. 360 is too common a phone to leave scrolling, so the
+   branding and the tab padding give a little more here. Nothing is dropped, and
+   375 and up keep the roomier sizing. */
+@media (max-width: 389px) {
+  .brand { margin-right: 6px; }
+  .wordmark { font-size: 14px; }
+  .tab { padding: 0 4px; }
+  .tab.on::after { left: 4px; right: 4px; }
 }
 
 /* ==================================================== phone and small tablet

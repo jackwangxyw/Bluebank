@@ -13,6 +13,33 @@
          /favicon.ico, got nothing, and showed the blank page glyph. The SVG
          carries its own light and dark fills; see the comment inside it. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Link previews. Discord, Slack, iMessage and the rest fetch the page
+         with a plain crawler that does not run JavaScript, so these have to sit
+         in the static HTML; nothing React sets at runtime is ever seen. og:image
+         has to be an absolute URL because the crawler fetches it as a separate
+         request with no page to resolve a relative path against, which also
+         means a fork on another domain has to edit these three URLs.
+         twitter:card is what makes the image render full width rather than as a
+         thumbnail, and Discord honours it despite the name. -->
+    <meta name="description"
+          content="Real SAT questions from the official College Board bank, in a UI that looks like Bluebook. Timed practice sets, official explanations for every choice, and stats on what you keep missing." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bluebank" />
+    <meta property="og:url" content="https://satbluebank.com/" />
+    <meta property="og:title" content="Bluebank" />
+    <meta property="og:description"
+          content="Real SAT questions from the official College Board bank, in a UI that looks like Bluebook. Timed practice sets, official explanations for every choice, and stats on what you keep missing." />
+    <meta property="og:image" content="https://satbluebank.com/og-card.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt"
+          content="The Bluebank home page, showing 3,767 official College Board questions split into Reading and Writing and Math." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- The stripe down the left edge of a Discord embed. Also tints the
+         address bar on Android Chrome, which is fine here because the app is
+         light only. --accent in styles.css. -->
+    <meta name="theme-color" content="#324dc8" />
     <!-- Noto is self-hosted in src/fonts, declared by src/fonts.css. It used to
          load from fonts.googleapis.com, which meant Google saw the IP of every
          visitor whether or not they ever signed in, and made the About page's

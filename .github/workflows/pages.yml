@@ -45,9 +45,10 @@ jobs:
       - name: Build
         working-directory: web
         env:
-          # Vite needs the repo name as the base path or every asset 404s.
-          # Set BASE=/ if you point a custom domain at this.
-          BASE: /${{ github.event.repository.name }}/
+          # Vite needs a base path or every asset 404s. This deploys to
+          # satbluebank.com, which serves from the root; a fork without a custom
+          # domain wants BASE: /${{ github.event.repository.name }}/ instead.
+          BASE: /
         run: npm run build:pages
 
       - uses: actions/upload-pages-artifact@v3

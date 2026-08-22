@@ -2,7 +2,7 @@
 
 This is a simple and modern UI for the official College Board SAT question bank. The tool does not store any actual question data, it pulls the questions from College Board themselves and just displays it. There are official explanations for each problem and stats to help you figure out what section you need to study more on.
 
-The site is at [jackwangxyw.github.io/Bluebank](https://jackwangxyw.github.io/Bluebank/).
+The site is at [satbluebank.com](https://satbluebank.com/).
 
 ![Practice view](Images/practice.png)
 
@@ -112,7 +112,7 @@ The cached index is re-read after a week, in the background so it never costs yo
 
 Turn Pages on before the first run, under repo Settings, Pages, Build and deployment, with Source set to GitHub Actions. Leave it on the default and the build passes while the deploy step fails.
 
-Vite needs a base path or every asset 404s, including the vendored MathJax. The workflow passes your repo name, so a fork deploys with no edit. A local `npm run build:pages` hardcodes `/Bluebank/` instead, so use `BASE=/ npm run build:pages` for a custom domain, or `BASE=/your-repo/` for anything else.
+Vite needs a base path or every asset 404s, including the vendored MathJax. The workflow sets `BASE: /` because this deploys to satbluebank.com, which serves from the root. A fork deploying to `username.github.io/repo` wants the repo name there instead, and a local `npm run build:pages` hardcodes `/Bluebank/`, so build with `BASE=/ npm run build:pages` to match what CI ships.
 
 ## Running Your Own Sync Server
 Skip this unless you want sync on your own deployment. Leave `VITE_SYNC_API` and `VITE_GOOGLE_CLIENT_ID` blank in [web/.env.pages](web/.env.pages) and the account UI doesn't render at all, which is also the rollback.

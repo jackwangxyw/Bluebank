@@ -59,6 +59,8 @@
  * migration.
  */
 const ALLOWED_ORIGINS = [
+  'https://satbluebank.com',
+  'https://www.satbluebank.com',
   'https://jackwangxyw.github.io',
   'http://localhost:5173',
   'http://localhost:8000',

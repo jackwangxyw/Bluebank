@@ -237,17 +237,19 @@ export function Home({
               {activeSets.map((s) => (
                 <li key={s.id} className="setcard">
                   <button className="setcard-main" onClick={() => onResume(s.id)}>
-                    <span className="setcard-t">{describeSet(s)}</span>
-                    <span className="setcard-b">
-                      {s.answered} of {s.total} answered
+                    <span className="setcard-text">
+                      <span className="setcard-t">{describeSet(s)}</span>
+                      <span className="setcard-b">
+                        {s.answered} of {s.total} answered
+                      </span>
+                      <span className="meter">
+                        <span className="meter-fill"
+                              style={{ width: `${Math.max((s.answered / Math.max(s.total, 1)) * 100, 0.4)}%` }} />
+                      </span>
                     </span>
-                    <span className="meter">
-                      <span className="meter-fill"
-                            style={{ width: `${Math.max((s.answered / Math.max(s.total, 1)) * 100, 0.4)}%` }} />
-                    </span>
+                    <span className="setcard-go">Resume</span>
                   </button>
                   <span className="setcard-side">
-                    <span className="setcard-go">Resume</span>
                     <button className="setcard-drop" onClick={() => onAbandon(s.id)}
                             title="Discard this set">
                       <Icon name="trash" size={15} strokeWidth={2} />

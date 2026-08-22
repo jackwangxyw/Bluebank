@@ -1501,25 +1501,28 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg);
 }
 .setcard:hover { border-color: var(--line-2); }
+/* The whole card is the button, apart from the delete. The label that says what
+   clicking does has to be inside it. */
 .setcard-main {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px;
   padding: 14px 16px; background: none; border: none; cursor: pointer;
   text-align: left; color: var(--ink); font: inherit;
 }
+.setcard-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .setcard-t { font-size: 14.5px; font-weight: 650; }
 .setcard-b { font-size: 12.5px; color: var(--muted); }
-.setcard-main .meter { margin-top: 6px; }
+.setcard-text .meter { margin-top: 6px; }
 .setcard-side {
   display: flex; align-items: center; gap: 6px; padding: 0 14px 0 0; flex: none;
 }
-.setcard-go { font-size: 13px; font-weight: 600; color: var(--accent); }
+.setcard-go { flex: none; font-size: 13px; font-weight: 600; color: var(--accent); }
 .setcard-drop {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: var(--r-sm);
   background: none; border: none; cursor: pointer; color: var(--muted);
 }
 .setcard-drop:hover { background: var(--red-soft); color: var(--red); }
-.setcard-score { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.setcard-score { flex: none; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .setcard-score.good { color: var(--green); }
 .setcard-score.mid  { color: var(--amber-text); }
 .setcard-score.poor { color: var(--red); }

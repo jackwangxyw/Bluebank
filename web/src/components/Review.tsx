@@ -143,18 +143,20 @@ export function Review({ onPractice, onOpenSet, onDeleteSet }: Props) {
           return (
             <li key={s.id} className="setcard">
               <button className="setcard-main" onClick={() => onOpenSet(s.id)}>
-                <span className="setcard-t">{describeSet(s)}</span>
-                <span className="setcard-b">
-                  {new Date((s.finished_at ?? s.created_at) * 1000)
-                    .toLocaleDateString(undefined,
-                      { month: 'short', day: 'numeric', year: 'numeric' })}
-                  {s.seconds ? ` · ${formatClock(s.seconds)}` : ''}
+                <span className="setcard-text">
+                  <span className="setcard-t">{describeSet(s)}</span>
+                  <span className="setcard-b">
+                    {new Date((s.finished_at ?? s.created_at) * 1000)
+                      .toLocaleDateString(undefined,
+                        { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {s.seconds ? ` · ${formatClock(s.seconds)}` : ''}
+                  </span>
                 </span>
-              </button>
-              <span className="setcard-side">
                 <span className={`setcard-score ${pct >= 90 ? 'good' : pct >= 70 ? 'mid' : 'poor'}`}>
                   {s.correct}<span className="dim">/{s.total}</span>
                 </span>
+              </button>
+              <span className="setcard-side">
                 <button className="setcard-drop"
                         title="Delete this set"
                         onClick={() => {

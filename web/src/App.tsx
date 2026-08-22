@@ -158,7 +158,12 @@ export default function App() {
     setShowMistake(false)
     let stale = false
     setLoading(true)
-    setQuestion(null); setResult(null); setResponse(null)
+    setQuestion(null); setResult(null)
+    // Inside a set the answer is held rather than submitted, so coming back to
+    // a question has to put the choice back.
+    const held = activeSetRef.current?.items
+      ?.find((i) => i.question_id === current.id)?.response ?? null
+    setResponse(activeSetRef.current ? held : null)
     setCrossOut(new Set()); setAnnotations([])
     api.question(current.id)
       .then((d) => {
@@ -274,7 +279,17 @@ export default function App() {
     const live = activeSetRef.current
     if (!live) return
     const spent = live.seconds ?? 0
-    const saved = await persistSet(live.items ?? [], true, spent)
+    // Everything is graded here rather than as it was answered, which is also
+    // where the attempts get recorded. A question left blank is not attempted.
+    const graded = await Promise.all((live.items ?? []).map(async (i) => {
+      if (i.response === null || i.response === '') return { ...i, correct: 0 as const }
+      try {
+        const r = await api.answer(i.question_id, i.response, i.seconds || 0)
+        return { ...i, correct: (r.correct ? 1 : 0) as 0 | 1 }
+      } catch { return { ...i, correct: 0 as const } }
+    }))
+    activeSetRef.current = { ...live, items: graded }
+    const saved = await persistSet(graded, true, spent)
     setShowSetReview(false)
     setShownSet(saved)
     setRemaining(null)
@@ -346,6 +361,28 @@ export default function App() {
   const go = useCallback((next: number) => {
     setIndex(Math.min(items.length - 1, Math.max(0, next)))
   }, [items.length])
+
+  /**
+   * Hold an answer inside a set.
+   *
+   * Nothing is graded and no attempt is recorded until the set is finished, the
+   * same as a real module, so picking again just replaces what is held.
+   */
+  const holdAnswer = useCallback((value: string | null, spent: number) => {
+    const live = activeSetRef.current
+    if (!live) return
+    const id = items[index]?.id
+    if (!id) return
+    const next = (live.items ?? []).map((i) => (
+      i.question_id === id ? { ...i, response: value, seconds: spent } : i
+    ))
+    // The set clock is the sum of the questions, not a separate counter, so it
+    // survives a reload the same way the answers do.
+    const total = next.reduce((sum, i) => sum + (i.seconds || 0), 0)
+    activeSetRef.current = { ...live, items: next, seconds: total }
+    setActiveSet(activeSetRef.current)
+    void persistSet(next, false, total)
+  }, [items, index, persistSet])
 
   async function submit() {
     if (!current || !response || result) return
@@ -438,10 +475,12 @@ export default function App() {
   const setStates = useMemo<CellState[] | undefined>(() => {
     if (!activeSet?.items) return undefined
     const byId = new Map(activeSet.items.map((i) => [i.question_id, i]))
+    // Answered or not, never right or wrong: nothing is graded until the set is
+    // finished, and a green cell would give the answer away.
     return items.map((item) => {
       const row = byId.get(item.id)
-      if (!row || row.response === null || row.response === '') return 'unanswered'
-      return row.correct ? 'first' : 'wrong'
+      const blank = !row || row.response === null || row.response === ''
+      return blank ? 'unanswered' : 'answered'
     })
   }, [activeSet?.items, items])
 
@@ -639,7 +678,11 @@ export default function App() {
             flagged={flagged}
             crossOutMode={crossOutMode}
             crossOut={crossOut}
-            onRespond={setResponse}
+            deferred={Boolean(activeSet)}
+            onRespond={(value) => {
+              setResponse(value)
+              if (activeSet) holdAnswer(value, seconds)
+            }}
             onSubmit={submit}
             onToggleFlag={toggleFlag}
             onToggleCrossOutMode={() => setCrossOutMode((v) => !v)}

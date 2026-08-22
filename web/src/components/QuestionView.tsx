@@ -49,6 +49,12 @@ interface Props {
   onToggleCrossOut: (label: string) => void
   onAddAnnotation: (a: Omit<Annotation, 'id'>) => void
   onRemoveAnnotation: (id: number) => void
+  /**
+   * Inside a practice set. Your answer is held and graded when the set ends,
+   * so there is nothing to submit and nothing to read here: no verdict, no
+   * explanation, and the choices stay live so you can change your mind.
+   */
+  deferred?: boolean
 }
 
 interface PendingSelection {
@@ -66,6 +72,7 @@ export function QuestionView(props: Props) {
     question, number, annotations, result, seconds, response, flagged,
     crossOutMode, crossOut, onRespond, onSubmit, onToggleFlag,
     onToggleCrossOutMode, onToggleCrossOut, onAddAnnotation, onRemoveAnnotation,
+    deferred,
   } = props
 
   const [pending, setPending] = useState<PendingSelection | null>(null)
@@ -200,8 +207,8 @@ export function QuestionView(props: Props) {
           {question.options.map((option) => {
             const isCrossed = crossOut.has(option.label)
             const isPicked = response === option.label
-            const isKey = answered && result!.accepted.includes(option.label)
-            const isWrongPick = answered && isPicked && !result!.correct
+            const isKey = !deferred && answered && result!.accepted.includes(option.label)
+            const isWrongPick = !deferred && answered && isPicked && !result!.correct
             return (
               <li key={option.label}
                   className={[
@@ -212,13 +219,13 @@ export function QuestionView(props: Props) {
                     isWrongPick ? 'is-wrongpick' : '',
                   ].filter(Boolean).join(' ')}>
                 <button className="choice-main"
-                        disabled={answered || isCrossed}
+                        disabled={(answered && !deferred) || isCrossed}
                         onClick={() => onRespond(option.label)}>
                   <span className="bubble">{option.label}</span>
                   <RichText className="choice-text" html={option.html}
                             field={`option:${option.label}`} annotations={annotations} />
                 </button>
-                {crossOutMode && !answered ? (
+                {crossOutMode && (!answered || deferred) ? (
                   <button className={isCrossed ? 'crossbtn on' : 'crossbtn'}
                           title={isCrossed ? 'Undo cross out' : `Cross out ${option.label}`}
                           onClick={() => onToggleCrossOut(option.label)}>
@@ -233,13 +240,13 @@ export function QuestionView(props: Props) {
         <div className="spr">
           <label htmlFor="spr-input">Enter your answer</label>
           <input id="spr-input" className="spr-input" value={response ?? ''}
-                 disabled={answered} autoComplete="off" placeholder="—"
+                 disabled={answered && !deferred} autoComplete="off" placeholder="—"
                  onChange={(e) => onRespond(e.target.value)}
-                 onKeyDown={(e) => { if (e.key === 'Enter' && response) onSubmit() }} />
+                 onKeyDown={(e) => { if (e.key === 'Enter' && response && !deferred) onSubmit() }} />
         </div>
       )}
 
-      {!answered ? (
+      {deferred ? null : !answered ? (
         <button className="btn primary submit" disabled={!response} onClick={onSubmit}>
           Submit answer
         </button>

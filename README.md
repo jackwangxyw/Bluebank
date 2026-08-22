@@ -13,11 +13,11 @@ Set size is what turns open practice into a practice set. Pick 10, 20, 30, 50 or
 
 A set can be timed. 1x is the time the real test gives for that many questions, and 0.75x, 1.25x and 1.5x scale it from there. Reading and writing gets 32 minutes for 27 questions on the day and math gets 35 for 22, so a set is priced per question from those. Running out ends the set.
 
-The question list at the bottom has a Go to Review Page button like Bluebook's, and it turns blue once you've answered everything. On the last question Next becomes Review. The review page lists every question in the set with how you did on each, and finishing there scores it.
+A set doesn't mark anything as you go. You pick an answer, Next moves on, and you can go back and change it. The question list at the bottom has a Go to Review Page button like Bluebook's, and it turns blue once you've answered everything. On the last question Next becomes Review. That page shows which questions you've answered and which you haven't, and finishing there grades the whole set at once.
 
 Unfinished sets wait for you on the home page. Finished ones move to the review page with their score and open back onto the screen you saw when you finished. You can run one again with the same questions, which is a new set so the old score stays put, and you can delete either kind.
 
-Every question is marked the moment you answer it, and multiple choice questions come with College Board's own explanation of why each choice is right or wrong. After you answer you can log why you got it wrong, process, silly, knowledge or other, plus a note to yourself. It takes a couple of seconds and is great for when you come back and review your mistakes.
+Outside a set every question is marked the moment you answer it, and multiple choice questions come with College Board's own explanation of why each choice is right or wrong. After you answer you can log why you got it wrong, process, silly, knowledge or other, plus a note to yourself. It takes a couple of seconds and is great for when you come back and review your mistakes.
 
 The review page is where you read it back. Every question you've answered, grouped by section and by day, with what you answered, how long it took, every earlier attempt at the same question, your notes and the official explanation. Filter it down to the ones you got wrong, or the ones you left a note on. The stats page breaks down what you've covered and where you're getting things wrong, by section, domain and skill, so you can aim your practice instead of guessing.
 

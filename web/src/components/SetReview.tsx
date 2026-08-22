@@ -8,10 +8,8 @@
  * than the page itself, so the grid and the legend are taken from the popup and
  * the page around them is ours.
  *
- * One deliberate difference: Bluebook cannot tell you what you got right,
- * because it grades after the module. This app grades as you answer, so the
- * cells carry the same right/retry/wrong colours the navigator uses rather than
- * a plain answered/unanswered.
+ * A set is graded when it ends, the same as a module, so the cells here say
+ * answered or not and nothing about right or wrong.
  */
 import { Icon } from './Icon'
 import { cellState, type CellState } from './Navigator'
@@ -61,9 +59,7 @@ export function SetReview({
 
         <div className="nav-legend setreview-legend">
           <span><i className="key key-unanswered" /> Unanswered</span>
-          <span><i className="key key-first" /> Correct first try</span>
-          <span><i className="key key-retry" /> Correct after retry</span>
-          <span><i className="key key-wrong" /> Incorrect</span>
+          <span><i className="key key-answered" /> Answered</span>
           <span><i className="key key-marked" /> Marked</span>
         </div>
 

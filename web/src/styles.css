@@ -775,6 +775,7 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
 .nav-legend span { display: inline-flex; align-items: center; gap: 7px; }
 .key { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
 .key-unanswered { border: 1px dashed var(--line-2); background: var(--bg); }
+.key-answered { background: var(--accent-soft); border: 1px solid var(--accent-ring); }
 .key-first { background: var(--green); }
 .key-retry { background: var(--yellow); }
 .key-wrong { background: var(--red); }
@@ -796,6 +797,12 @@ mark.hl-note { box-shadow: 0 2px 0 var(--accent); }
   font-size: 14px; font-weight: 550; font-variant-numeric: tabular-nums;
   cursor: pointer; background: var(--bg); border: 1px dashed var(--line-2);
   color: var(--ink-2);
+}
+/* Answered, but not yet graded: a set holds answers until it ends. Solid rather
+   than the dashed unanswered cell, and neutral rather than a verdict colour. */
+.nav-cell.is-answered {
+  background: var(--accent-soft); border: 1px solid var(--accent-ring);
+  color: var(--accent-dark); font-weight: 650;
 }
 .nav-cell.is-first { background: var(--green); border: 1px solid var(--green); color: #fff; }
 .nav-cell.is-retry { background: var(--yellow); border: 1px solid var(--yellow); color: #3a2c00; }

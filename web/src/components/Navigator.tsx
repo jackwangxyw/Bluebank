@@ -23,7 +23,7 @@ interface Props {
   states?: CellState[]
 }
 
-export type CellState = 'unanswered' | 'first' | 'retry' | 'wrong'
+export type CellState = 'unanswered' | 'answered' | 'first' | 'retry' | 'wrong'
 
 /**
  * White until you answer, green if you got it first time, yellow if it took
@@ -52,9 +52,17 @@ export function Navigator({
 
         <div className="nav-legend">
           <span><i className="key key-unanswered" /> Unanswered</span>
-          <span><i className="key key-first" /> Correct first try</span>
-          <span><i className="key key-retry" /> Correct after retry</span>
-          <span><i className="key key-wrong" /> Incorrect</span>
+          {/* A set is graded when it ends, so mid-set there is nothing to say
+              about right or wrong. */}
+          {states ? (
+            <span><i className="key key-answered" /> Answered</span>
+          ) : (
+            <>
+              <span><i className="key key-first" /> Correct first try</span>
+              <span><i className="key key-retry" /> Correct after retry</span>
+              <span><i className="key key-wrong" /> Incorrect</span>
+            </>
+          )}
           <span><i className="key key-marked" /> Marked</span>
         </div>
 

@@ -668,17 +668,19 @@ export default function App() {
           <button className="btn primary" onClick={() => go(index - 1)} disabled={index <= 0}>
             Back
           </button>
-          {activeSet ? (
-            <button className={setComplete ? 'btn primary' : 'btn'}
-                    onClick={() => setShowSetReview(true)}>
+          {/* On the last question of a set, Next becomes the way out. Bluebook
+              does the same thing rather than showing both. */}
+          {activeSet && index >= items.length - 1 ? (
+            <button className="btn primary" onClick={() => setShowSetReview(true)}>
               Review
               <Icon name="arrow-right" size={17} strokeWidth={2.2} />
             </button>
-          ) : null}
-          <button className="btn primary" onClick={() => go(index + 1)}
-                  disabled={index >= items.length - 1}>
-            Next
-          </button>
+          ) : (
+            <button className="btn primary" onClick={() => go(index + 1)}
+                    disabled={index >= items.length - 1}>
+              Next
+            </button>
+          )}
         </div>
       </footer>
 

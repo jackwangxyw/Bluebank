@@ -7,13 +7,23 @@ This is a simple and modern UI for the official College Board SAT question bank.
 ## The App
 The UI is built based off of Bluebook, the app you actually take the test in, so the interface isn't new to you on test day. Reading and writing questions put the passage on one side and the question on the other, with a divider you can drag. Math questions put the figure above the question, and come with the Desmos calculator in the same restricted version College Board gives you, so you're practicing with the tools you'll actually have on the day. You also get highlighting and notes, answer cross out, and a navigator showing which questions you've done, which you got wrong, and which you marked to come back to.
 
-Build a set from any combination of filters. Domain, skill, difficulty and history all take more than one value at a time, so medium and hard together is one set rather than two. Every question is marked the moment you answer it, and multiple choice questions come with College Board's own explanation of why each choice is right or wrong. After you answer you can log why you got it wrong, process, silly, knowledge or other, plus a note to yourself. It takes a couple of seconds and is great for when you come back and review your mistakes.
+Build a set from any combination of filters. Domain, skill, difficulty and history all take more than one value at a time, so medium and hard together is one set rather than two. Just over half the bank is also on the official practice tests, and the checkbox next to the start button leaves those out so the tests are still worth sitting later.
+
+Set size is what turns open practice into a practice set. Pick 10, 20, 30, 50 or your own number and you get that many questions pulled at random from whatever the filters allow. They're fixed once you start, so it's the same questions in the same order if you come back tomorrow or open it on your phone. Leave the size on All and you just practice until you stop.
+
+A set can be timed. 1x is the time the real test gives for that many questions, and 0.75x, 1.25x and 1.5x scale it from there. Reading and writing gets 32 minutes for 27 questions on the day and math gets 35 for 22, so a set is priced per question from those. Running out ends the set.
+
+The question list at the bottom has a Go to Review Page button like Bluebook's, and it turns blue once you've answered everything. On the last question Next becomes Review. The review page lists every question in the set with how you did on each, and finishing there scores it.
+
+Unfinished sets wait for you on the home page. Finished ones move to the review page with their score and open back onto the screen you saw when you finished. You can run one again with the same questions, which is a new set so the old score stays put, and you can delete either kind.
+
+Every question is marked the moment you answer it, and multiple choice questions come with College Board's own explanation of why each choice is right or wrong. After you answer you can log why you got it wrong, process, silly, knowledge or other, plus a note to yourself. It takes a couple of seconds and is great for when you come back and review your mistakes.
 
 The review page is where you read it back. Every question you've answered, grouped by section and by day, with what you answered, how long it took, every earlier attempt at the same question, your notes and the official explanation. Filter it down to the ones you got wrong, or the ones you left a note on. The stats page breaks down what you've covered and where you're getting things wrong, by section, domain and skill, so you can aim your practice instead of guessing.
 
 Mobile has its own layout that keeps the aesthetic but is easy to use on a smaller device. Questions are laid out vertically instead of being split down the middle. Once a question has loaded, everything except the calculator keeps working with no connection.
 
-The app does have a google login for syncing your data across devices, but this is strictly NOT needed for normal use. There's more information on our privacy and data collection on the about page of the site itself.
+The app does have a google login for syncing your data across devices, but this is strictly NOT needed for normal use. Practice sets sync too, so one you start on a laptop is waiting on your phone. There's more information on our privacy and data collection on the about page of the site itself.
 
 ## Quick Start for Self Hosting
 Everything from here down is for running your own copy. If you just want to use the site, you're done.
@@ -129,22 +139,18 @@ A stub carries an `external_id` or an `ibn`, never both. The 459 `ibn` items are
 `lookup` is the one that isn't obvious. It returns `readingLiveItems` and `mathLiveItems`, 1,110 and 927 external_ids, and those are the questions that also sit on an official full-length practice test. It's what College Board's own bank means by "Exclude Active Questions", and it's how the same filter works here. Their frontend matches on `external_id` against the list for that section only, so an `ibn` item is never on a test and a Reading id can't take a Math question out; both rules are copied rather than guessed, and pinned in the tests on both sides.
 
 ## Practice Sets
-A set is a fixed run: pick a size on the home page and you get that many questions drawn at random from whatever the filters allow, frozen at that point, with a score at the end. Leave the size on All and nothing changes, you get the open-ended practice the app has always done.
+A set is one row in `sets`: the question ids, the progress against them, and the filters it was built from. `items_json` holds both the list and the answers, and it's a snapshot rather than a view over `attempts`, so answering one of those questions again next week doesn't change what the set scored. Deleting a set leaves the attempts alone.
 
-The questions are drawn randomly rather than taken off the top of the shuffle, so two 20-question Math sets are two different sets. Once drawn they never move: the same questions in the same order when you come back tomorrow or open it on your phone.
+Only finished sets have a `finished_at`. That's what splits the two lists, unfinished on the home page and finished on the review page.
 
-Set the pace and you get a clock. It's priced per question from the real test, which gives Reading and Writing 32 minutes for 27 questions and Math 35 for 22, so 71 and 95 seconds each. 0.75x is three quarters of that and 1.5x is half again. Running out ends the set the way it ends a module on the day.
+A set changes as you work through it, so unlike an attempt it can't merge by union on the uuid. It's last write wins on `updated_at`, the same rule marks and annotations use. If you already run a sync server, re-run [worker/schema.sql](worker/schema.sql) and re-paste the worker to pick up the `sets` table.
 
-Unfinished sets sit on the home page until you go back to them. Finished ones move to the review page, with the score, and open onto the same screen you saw when you finished. You can run one again, which is the same questions as a new set so the old score stays where it is, and you can delete either kind.
-
-`items_json` on a set is a snapshot rather than a view over `attempts`. Answer one of those questions again next week and the set still shows what you scored on the day. That is also why deleting a set leaves your attempt history alone: the attempts belong to the questions, not to the set.
-
-Unlike an attempt, a set changes while you work through it, so the sync merge is last write wins on `updated_at` rather than a union on the uuid. If you already run your own sync server, re-run [worker/schema.sql](worker/schema.sql) and re-paste the worker to pick up the `sets` table.
+The clock comes from [web/src/lib/pacing.ts](web/src/lib/pacing.ts), which holds the two numbers the whole thing rests on: 32 minutes for 27 reading and writing questions, 35 for 22 math. The tests pin a full module round tripping back to its own length.
 
 ## Practice Tests
-2,019 of the 3,767 questions are also on the official practice tests, so working straight through the bank spoils every one of them. The filter on the home page takes those out and leaves 1,748, which is 753 Reading and Writing and 995 Math.
+2,019 of the 3,767 questions are also on the official practice tests. Excluding them leaves 1,748, which is 753 reading and writing and 995 math.
 
-The list is fetched in pass 1 and written to `data/live.json`, then `normalize` turns it into a `live` column. Pass 3 stays a pure function of what's on disk that way, and a `lookup` that fails costs you the filter rather than the build. The static build fetches the same list into IndexedDB and refreshes it whenever it refreshes the index, since a new practice test is what changes both.
+The list comes from `lookup`, gets written to `data/live.json` in pass 1, and `normalize` turns it into a `live` column. Pass 3 stays a pure function of what's on disk that way, and a `lookup` that fails costs you the filter rather than the build. The static build keeps the same list in IndexedDB and re-reads it whenever it re-reads the index.
 
 ## Vendored Assets
 MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Noto is self hosted in [web/src/fonts](web/src/fonts) rather than loaded from Google, since a font CDN sees the IP of every visitor whether or not they ever sign in.

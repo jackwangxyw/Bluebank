@@ -35,9 +35,9 @@ const DIFFICULTIES: { key: Difficulty; label: string }[] = [
 ]
 
 const STATUSES = [
-  { key: 'unseen', label: 'Not yet seen' },
-  { key: 'wrong', label: 'Got wrong' },
-  { key: 'correct', label: 'Got right' },
+  { key: 'unseen', label: 'Not seen' },
+  { key: 'wrong', label: 'Incorrect' },
+  { key: 'correct', label: 'Correct' },
   { key: 'flagged', label: 'Marked' },
 ] as const
 
@@ -459,30 +459,34 @@ export function Home({
       {picked ? (
         <div className="startbar">
           <div className="startbar-inner">
-            <div className="startbar-left">
-              <span className="count">
-                {loading ? 'Counting…' : value.size ? (
-                  <>
-                    <strong>{Math.min(value.size, count).toLocaleString()}</strong>
-                    {` of ${count.toLocaleString()}`}
+            {/* The number stacks over its label so the phone row can be
+                count on the left, button on the right, one line. */}
+            <span className="count">
+              {loading ? 'Counting…' : value.size ? (
+                <>
+                  <strong>{Math.min(value.size, count).toLocaleString()}</strong>
+                  <span className="count-sub">
+                    {`of ${count.toLocaleString()}`}
                     {value.speed ? ` · ${formatClock(plannedSeconds)}` : ''}
-                  </>
-                ) : (
-                  <>
-                    <strong>{count.toLocaleString()}</strong>
-                    {` question${count === 1 ? '' : 's'} selected`}
-                  </>
-                )}
-              </span>
-              {totals.live ? (
-                <label className="excl">
-                  <input type="checkbox"
-                         checked={value.excludeLive ?? false}
-                         onChange={(e) => set({ excludeLive: e.target.checked || undefined })} />
-                  Exclude active questions
-                </label>
-              ) : null}
-            </div>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <strong>{count.toLocaleString()}</strong>
+                  <span className="count-sub">
+                    {`question${count === 1 ? '' : 's'} selected`}
+                  </span>
+                </>
+              )}
+            </span>
+            {totals.live ? (
+              <label className="excl">
+                <input type="checkbox"
+                       checked={value.excludeLive ?? false}
+                       onChange={(e) => set({ excludeLive: e.target.checked || undefined })} />
+                Exclude active questions
+              </label>
+            ) : null}
             <button className="btn primary lg" disabled={!count || loading} onClick={onStart}>
               {value.size ? 'Start set' : 'Start practicing'}
               <Icon name="arrow-right" size={18} strokeWidth={2.2} />

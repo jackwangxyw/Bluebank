@@ -213,7 +213,12 @@ button { font-family: inherit; color: inherit; }
 .domain-all { margin-bottom: 16px; }
 .domain-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
 .domain-col .cap { flex-basis: auto; margin: 0 0 9px; display: block; }
-.row-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
+/* Not an even split: Difficulty is four short words and History is five longer
+   ones, and History has to stay on one line. */
+.row-pair {
+  display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 22px 28px;
+}
 .row-pair .pair-half { min-width: 0; }
 .row-pair .label { margin-top: 0; }
 .row { padding: 26px 0; border-top: 1px solid var(--line); }
@@ -263,11 +268,14 @@ button { font-family: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
   padding: 14px 32px;
 }
-.startbar-left { display: flex; align-items: center; gap: 18px; min-width: 0; flex-wrap: wrap; }
-.count { color: var(--muted); font-size: 14px; }
+/* Three items, so the checkbox sits centred between the count and the button
+   rather than hanging off either one. */
+.count { color: var(--muted); font-size: 14px; min-width: 0; }
 
-/* Next to the button rather than buried in the filters: it is the last thing
-   you decide before starting. */
+.count-sub { margin-left: 5px; }
+
+/* Between the count and the button rather than buried in the filters: it is the
+   last thing you decide before starting. */
 .excl {
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
   font-size: 13.5px; color: var(--ink-2); white-space: nowrap;
@@ -1151,15 +1159,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
    This has to sit after .ghlink rather than up with the other tab rules, or
    its display:inline-flex wins on source order and the link never hides. */
 @media (max-width: 470px) {
-  /* Everything fits down to 360px after the tightening below. Narrower than
-     that (a 320px phone) it scrolls rather than clipping, so no tab can become
-     unreachable. Safe to make this a scroll container only here, because below
-     819px .acct-panel is position:fixed and so is not clipped by it. */
-  .tabs-inner {
-    padding: 0 10px; overflow-x: auto; scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tabs-inner::-webkit-scrollbar { display: none; }
+  .tabs-inner { padding: 0 10px; }
   .tabs-inner > * { flex: none; }
   /* One or the other, never both: the mark, the name, four tabs and the sync
      badge do not fit together at 390px. The name wins, because a phone gives
@@ -1184,6 +1184,20 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .wordmark { font-size: 14px; }
   .tab { padding: 0 4px; }
   .tab.on::after { left: 4px; right: 4px; }
+}
+
+/* The scroll fallback, and ONLY where it earns its keep.
+ *
+ * `overflow-x: auto` forces overflow-y to auto with it, so this makes the nav
+ * row a scroll container in both axes. An account panel is position:fixed
+ * inside it, and on iOS a fixed descendant of a touch-scrolling container is
+ * the classic case that renders but will not take a tap. It was applied at
+ * 470px, which is every phone; the row actually fits down to 345, so the
+ * container only belongs below that.
+ */
+@media (max-width: 344px) {
+  .tabs-inner { overflow-x: auto; scrollbar-width: none; }
+  .tabs-inner::-webkit-scrollbar { display: none; }
 }
 
 /* ==================================================== phone and small tablet
@@ -1260,9 +1274,23 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   /* Full width and one line. It was 173px wide and 72px tall, ie. wrapped over
      two lines. The bar is a space-between row, so the button has to get its own
      row before width:100% means anything. */
-  .startbar-inner { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
-  .startbar-left { flex-direction: column; align-items: center; gap: 8px; }
-  .count { text-align: center; font-size: 13.5px; }
+  /* Checkbox on its own line, then count on the left and a smaller button on
+     the right. The count stacks its number over its label so that row stays
+     one line. */
+  .startbar-inner {
+    display: grid; grid-template-columns: 1fr auto; grid-template-areas:
+      "excl excl"
+      "count go";
+    align-items: center; gap: 10px 12px; padding: 12px 16px;
+  }
+  .excl { grid-area: excl; justify-self: start; }
+  .count { grid-area: count; display: flex; flex-direction: column; line-height: 1.25; font-size: 12.5px; }
+  .count strong { font-size: 19px; }
+  .count-sub { margin-left: 0; }
+  .btn.lg {
+    grid-area: go; width: auto; justify-self: end;
+    padding: 11px 18px; font-size: 14px;
+  }
   /* One column each: side by side is a desktop win and a phone squeeze. */
   .domain-cols, .row-pair { grid-template-columns: 1fr; gap: 22px; }
   .btn.lg {

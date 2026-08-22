@@ -591,7 +591,10 @@ button.row-name:hover svg { opacity: 1; }
   padding: 11px 16px; cursor: pointer;
   transition: border-color .1s, box-shadow .1s, background .1s;
 }
-.choice-main:hover:not(:disabled) { border-color: var(--ink-2); }
+.choices:not(.static) .choice-main:hover:not(:disabled) { border-color: var(--ink-2); }
+/* Review lists the choices to read them back, not to answer again. The colours
+   stay, the pointer and the hover edge go. */
+.choices.static .choice-main { cursor: default; }
 /* Selected: 2px royal-blue edge inside a pale blue ring, Bluebook's exact tell. */
 .choice.picked .choice-main {
   border-color: var(--accent);

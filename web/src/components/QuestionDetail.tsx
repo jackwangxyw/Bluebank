@@ -100,6 +100,34 @@ export function QuestionDetail({ id, response, seconds, onPractice, onLogged }: 
         <RichText html={data.question.stem_html} field="stem" annotations={[]} />
       </div>
 
+      {/* The explanation below talks about the choices by letter, so without
+          the choices themselves "Why B is wrong" says nothing. Same markup and
+          the same three colours practice uses once you have answered: green is
+          the key, red is a wrong pick, the blue ring is what you chose. */}
+      {data.question.type === 'mcq' && data.question.options ? (
+        <ul className="choices static">
+          {data.question.options.map((option) => {
+            const isPicked = response === option.label
+            const isKey = result.accepted.includes(option.label)
+            return (
+              <li key={option.label}
+                  className={[
+                    'choice',
+                    isPicked ? 'picked' : '',
+                    isKey ? 'is-key' : '',
+                    isPicked && !isKey ? 'is-wrongpick' : '',
+                  ].filter(Boolean).join(' ')}>
+                <div className="choice-main">
+                  <span className="bubble">{option.label}</span>
+                  <RichText className="choice-text" html={option.html}
+                            field={`option:${option.label}`} annotations={[]} />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+
       <h4 className="review-h">Your attempts</h4>
       <div className="review-tablewrap">
         <table className="review-table">

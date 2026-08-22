@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { SPEEDS, setSeconds, formatClock } from '../lib/pacing'
 import { describeSet } from '../lib/setlabel'
@@ -43,11 +43,6 @@ const STATUSES = [
 
 /** Offered set sizes. `null` is the default: the whole pool, no set at all. */
 const SIZES: (number | null)[] = [null, 10, 20, 30, 50]
-
-const SECTION_NAME: Record<Section, string> = {
-  RW: 'Reading and Writing',
-  MATH: 'Math',
-}
 
 interface DomainRow {
   code: string
@@ -304,21 +299,47 @@ export function Home({
           <section className="refine">
             <div className="row">
               <h2 className="label">Domain</h2>
-              <div className="chips">
-                <button className={!value.domains?.length ? 'chip on' : 'chip'}
-                        onClick={() => set({ domains: undefined, skills: undefined })}>
-                  All
-                </button>
-                {domains.map((d, i) => (
-                  <Fragment key={d.code}>
-                    {picked === 'ALL' && (i === 0 || domains[i - 1].section !== d.section) ? (
-                      <>
-                        {i > 0 ? <span className="brk" /> : null}
-                        <span className="cap">{SECTION_NAME[d.section]}</span>
-                        <span className="brk" />
-                      </>
-                    ) : null}
-                    <button className={value.domains?.includes(d.code) ? 'chip on' : 'chip'}
+              {picked === 'ALL' ? (
+                /* One column per section rather than one long stack. The two
+                   sections are read separately, and side by side they fit on a
+                   screen instead of pushing everything below the fold. */
+                <>
+                <div className="chips domain-all">
+                  <button className={!value.domains?.length ? 'chip on' : 'chip'}
+                          onClick={() => set({ domains: undefined, skills: undefined })}>
+                    All
+                  </button>
+                </div>
+                <div className="domain-cols">
+                  {SECTIONS.map((sec) => (
+                    <div key={sec.key} className="domain-col">
+                      <span className="cap">{sec.label}</span>
+                      <div className="chips">
+                        {domains.filter((d) => d.section === sec.key).map((d) => (
+                          <button key={d.code}
+                                  className={value.domains?.includes(d.code) ? 'chip on' : 'chip'}
+                                  aria-pressed={value.domains?.includes(d.code) ?? false}
+                                  onClick={() => toggleDomain(d.code)}>
+                            {d.name}
+                            <span className="chip-n">{d.n}</span>
+                            <span className="chip-meter"
+                                  style={{ transform: `scaleX(${d.n ? d.seen / d.n : 0})` }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
+              ) : (
+                <div className="chips">
+                  <button className={!value.domains?.length ? 'chip on' : 'chip'}
+                          onClick={() => set({ domains: undefined, skills: undefined })}>
+                    All
+                  </button>
+                  {domains.map((d) => (
+                    <button key={d.code}
+                            className={value.domains?.includes(d.code) ? 'chip on' : 'chip'}
                             aria-pressed={value.domains?.includes(d.code) ?? false}
                             onClick={() => toggleDomain(d.code)}>
                       {d.name}
@@ -326,9 +347,9 @@ export function Home({
                       <span className="chip-meter"
                             style={{ transform: `scaleX(${d.n ? d.seen / d.n : 0})` }} />
                     </button>
-                  </Fragment>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {value.domains?.length ? (
@@ -354,54 +375,39 @@ export function Home({
               </div>
             ) : null}
 
-            <div className="row">
-              <h2 className="label">Difficulty</h2>
-              <div className="chips">
-                <button className={!value.difficulties?.length ? 'chip on' : 'chip'}
-                        onClick={() => set({ difficulties: undefined })}>Any</button>
-                {DIFFICULTIES.map((d) => (
-                  <button key={d.key}
-                          className={value.difficulties?.includes(d.key) ? 'chip on' : 'chip'}
-                          aria-pressed={value.difficulties?.includes(d.key) ?? false}
-                          onClick={() => set({ difficulties: toggle(value.difficulties, d.key) })}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="row">
-              <h2 className="label">History</h2>
-              <div className="chips">
-                <button className={!value.statuses?.length ? 'chip on' : 'chip'}
-                        onClick={() => set({ statuses: undefined })}>Any</button>
-                {STATUSES.map((s) => (
-                  <button key={s.key}
-                          className={value.statuses?.includes(s.key) ? 'chip on' : 'chip'}
-                          aria-pressed={value.statuses?.includes(s.key) ?? false}
-                          onClick={() => set({ statuses: toggle(value.statuses, s.key) })}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {totals.live ? (
-              <div className="row">
-                <h2 className="label">Practice tests</h2>
+            <div className="row row-pair">
+              <div className="pair-half">
+                <h2 className="label">Difficulty</h2>
                 <div className="chips">
-                  <button className={value.excludeLive ? 'chip on' : 'chip'}
-                          aria-pressed={value.excludeLive ?? false}
-                          onClick={() => set({ excludeLive: !value.excludeLive })}>
-                    Leave the practice tests alone
-                  </button>
+                  <button className={!value.difficulties?.length ? 'chip on' : 'chip'}
+                          onClick={() => set({ difficulties: undefined })}>Any</button>
+                  {DIFFICULTIES.map((d) => (
+                    <button key={d.key}
+                            className={value.difficulties?.includes(d.key) ? 'chip on' : 'chip'}
+                            aria-pressed={value.difficulties?.includes(d.key) ?? false}
+                            onClick={() => set({ difficulties: toggle(value.difficulties, d.key) })}>
+                      {d.label}
+                    </button>
+                  ))}
                 </div>
-                <p className="hint">
-                  {totals.live.toLocaleString()} of these are on the official
-                  full-length practice tests.
-                </p>
               </div>
-            ) : null}
+
+              <div className="pair-half">
+                <h2 className="label">History</h2>
+                <div className="chips">
+                  <button className={!value.statuses?.length ? 'chip on' : 'chip'}
+                          onClick={() => set({ statuses: undefined })}>Any</button>
+                  {STATUSES.map((st) => (
+                    <button key={st.key}
+                            className={value.statuses?.includes(st.key) ? 'chip on' : 'chip'}
+                            aria-pressed={value.statuses?.includes(st.key) ?? false}
+                            onClick={() => set({ statuses: toggle(value.statuses, st.key) })}>
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             <div className="row">
               <h2 className="label">Set size</h2>
@@ -453,20 +459,30 @@ export function Home({
       {picked ? (
         <div className="startbar">
           <div className="startbar-inner">
-            <span className="count">
-              {loading ? 'Counting…' : value.size ? (
-                <>
-                  <strong>{Math.min(value.size, count).toLocaleString()}</strong>
-                  {` of ${count.toLocaleString()}`}
-                  {value.speed ? ` · ${formatClock(plannedSeconds)}` : ''}
-                </>
-              ) : (
-                <>
-                  <strong>{count.toLocaleString()}</strong>
-                  {` question${count === 1 ? '' : 's'} selected`}
-                </>
-              )}
-            </span>
+            <div className="startbar-left">
+              <span className="count">
+                {loading ? 'Counting…' : value.size ? (
+                  <>
+                    <strong>{Math.min(value.size, count).toLocaleString()}</strong>
+                    {` of ${count.toLocaleString()}`}
+                    {value.speed ? ` · ${formatClock(plannedSeconds)}` : ''}
+                  </>
+                ) : (
+                  <>
+                    <strong>{count.toLocaleString()}</strong>
+                    {` question${count === 1 ? '' : 's'} selected`}
+                  </>
+                )}
+              </span>
+              {totals.live ? (
+                <label className="excl">
+                  <input type="checkbox"
+                         checked={value.excludeLive ?? false}
+                         onChange={(e) => set({ excludeLive: e.target.checked || undefined })} />
+                  Exclude active questions
+                </label>
+              ) : null}
+            </div>
             <button className="btn primary lg" disabled={!count || loading} onClick={onStart}>
               {value.size ? 'Start set' : 'Start practicing'}
               <Icon name="arrow-right" size={18} strokeWidth={2.2} />

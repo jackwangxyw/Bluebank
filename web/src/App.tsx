@@ -445,6 +445,11 @@ export default function App() {
     })
   }, [activeSet?.items, items])
 
+  /** Nothing left unanswered in this set. */
+  const setComplete = Boolean(
+    activeSet && setStates?.length && setStates.every((st) => st !== 'unanswered'),
+  )
+
   const section = question?.section ?? filters.section ?? 'RW'
   // Reads like Bluebook's "Section 1, Module 2: Reading and Writing": the
   // section, then whatever the filters narrowed it to.
@@ -663,8 +668,9 @@ export default function App() {
           <button className="btn primary" onClick={() => go(index - 1)} disabled={index <= 0}>
             Back
           </button>
-          {activeSet && index >= items.length - 1 ? (
-            <button className="btn primary" onClick={() => setShowSetReview(true)}>
+          {activeSet ? (
+            <button className={setComplete ? 'btn primary' : 'btn'}
+                    onClick={() => setShowSetReview(true)}>
               Review
               <Icon name="arrow-right" size={17} strokeWidth={2.2} />
             </button>
@@ -680,6 +686,7 @@ export default function App() {
         <Navigator items={items} current={index} title={setTitle}
                    onGo={go} onClose={() => setShowNavigator(false)}
                    states={setStates}
+                   complete={setComplete}
                    onReviewPage={activeSet ? () => {
                      setShowNavigator(false); setShowSetReview(true)
                    } : undefined} />

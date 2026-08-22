@@ -13,6 +13,8 @@ interface Props {
    * page; open practice has no end to review, so it has no button.
    */
   onReviewPage?: () => void
+  /** Everything in the set is answered, so the way out is the obvious action. */
+  complete?: boolean
   /**
    * Cell state per question, when the caller knows better than the question's
    * own history does. A practice set does: its cells have to show how THIS set
@@ -35,7 +37,7 @@ export function cellState(item: SetItem): CellState {
 }
 
 export function Navigator({
-  items, current, title, onGo, onClose, onReviewPage, states,
+  items, current, title, onGo, onClose, onReviewPage, states, complete,
 }: Props) {
   return (
     <>
@@ -73,7 +75,8 @@ export function Navigator({
 
         <div className="nav-foot">
           {onReviewPage ? (
-            <button className="btn nav-review" onClick={onReviewPage}>
+            <button className={complete ? 'btn primary nav-review' : 'btn nav-review'}
+                    onClick={onReviewPage}>
               Go to Review Page
             </button>
           ) : null}

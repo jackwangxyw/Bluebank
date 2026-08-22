@@ -203,7 +203,19 @@ button { font-family: inherit; color: inherit; }
 }
 
 /* ---- refinements: hairline rows, no surrounding box ---- */
+/* Every block on the home page gets the same air between it and the next one.
+   The sets list and the Section label were nearly touching without this. */
+.pick + .pick, .pick + .refine { margin-top: 40px; }
 .refine { margin-top: 44px; }
+
+/* Two columns where the content is two independent lists, so the page fits on
+   a screen instead of scrolling past the fold. Both collapse on a phone. */
+.domain-all { margin-bottom: 16px; }
+.domain-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
+.domain-col .cap { flex-basis: auto; margin: 0 0 9px; display: block; }
+.row-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
+.row-pair .pair-half { min-width: 0; }
+.row-pair .label { margin-top: 0; }
 .row { padding: 26px 0; border-top: 1px solid var(--line); }
 .row:first-child { border-top: none; padding-top: 0; }
 
@@ -251,7 +263,16 @@ button { font-family: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
   padding: 14px 32px;
 }
+.startbar-left { display: flex; align-items: center; gap: 18px; min-width: 0; flex-wrap: wrap; }
 .count { color: var(--muted); font-size: 14px; }
+
+/* Next to the button rather than buried in the filters: it is the last thing
+   you decide before starting. */
+.excl {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13.5px; color: var(--ink-2); white-space: nowrap;
+}
+.excl input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin: 0; }
 .count strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ============================ stats ============================ */
@@ -1240,7 +1261,10 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
      two lines. The bar is a space-between row, so the button has to get its own
      row before width:100% means anything. */
   .startbar-inner { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
+  .startbar-left { flex-direction: column; align-items: center; gap: 8px; }
   .count { text-align: center; font-size: 13.5px; }
+  /* One column each: side by side is a desktop win and a phone squeeze. */
+  .domain-cols, .row-pair { grid-template-columns: 1fr; gap: 22px; }
   .btn.lg {
     width: 100%; justify-content: center; white-space: nowrap;
     padding: 14px 20px; font-size: 15px;

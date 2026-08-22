@@ -49,6 +49,13 @@ export const saveMistake = impl.saveMistake
 export const reviewed = impl.reviewed
 export const stats = impl.stats
 
+// Practice sets: a frozen, randomly drawn list of questions you work through
+// and score. Both backends store them the same shape.
+export const listSets = impl.listSets
+export const getSet = impl.getSet
+export const saveSet = impl.saveSet
+export const deleteSet = impl.deleteSet
+
 /**
  * Re-read the index from College Board. Static backend only: on localhost the
  * refresh is `python -m bluebank build`.

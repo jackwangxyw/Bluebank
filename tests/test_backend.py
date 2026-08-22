@@ -8,7 +8,7 @@ import tempfile
 import unittest
 import uuid
 
-from bluebank import db, grading, rationale, session
+from bluebank import db, grading, pipeline, rationale, session
 
 
 class TestCanonical(unittest.TestCase):
@@ -427,6 +427,17 @@ class TestFilterSql(unittest.TestCase):
         self.assertNotIn("DROP", where)
         self.assertEqual(params, ["'; DROP TABLE questions --"])
 
+    def test_exclude_live_is_off_by_default(self):
+        where, _ = session._filter_sql()
+        self.assertNotIn("q.live", where)
+
+    def test_exclude_live_adds_a_bound_free_predicate(self):
+        # A flag, not a value, so it must not add a parameter that would then
+        # sit out of order against the placeholders around it.
+        where, params = session._filter_sql(section="RW", exclude_live=True)
+        self.assertIn("q.live = 0", where)
+        self.assertEqual(params, ["RW"])
+
 
 class TestQuestionSetFilters(unittest.TestCase):
     """The same rules, against a real database."""
@@ -476,6 +487,192 @@ class TestQuestionSetFilters(unittest.TestCase):
     def test_empty_lists_match_everything(self):
         self.assertEqual(self.ids(domains=[], difficulties=[]),
                          ["q1", "q2", "q3", "q4"])
+
+
+class TestExcludeLive(unittest.TestCase):
+    """Questions that also sit on an official full-length practice test.
+
+    College Board's own bank calls this "Exclude Active Questions" and matches
+    on external_id within the question's own section. The list is fetched in
+    pass 1 and stored as a flag, so this is just a column by the time a filter
+    sees it, but the rules that produced the column are worth pinning too.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.conn = db.connect(os.path.join(self.dir, "t.db"))
+        rows = [("live-rw", "RW", 1), ("free-rw", "RW", 0),
+                ("live-math", "MATH", 1), ("free-math", "MATH", 0)]
+        for qid, section, live in rows:
+            self.conn.execute(
+                "INSERT INTO questions (id, source_path, section, domain,"
+                " domain_name, skill, skill_name, difficulty, type, stem_html,"
+                " correct_json, rationale_html, update_date, live)"
+                " VALUES (?,'external_id',?,'D','Domain','S','Skill','E','spr',"
+                "'stem','[\"4\"]','r',0,?)", (qid, section, live))
+        self.conn.commit()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def ids(self, **kwargs):
+        return sorted(r["id"] for r in session.question_set(self.conn, **kwargs))
+
+    def test_off_by_default(self):
+        self.assertEqual(self.ids(),
+                         ["free-math", "free-rw", "live-math", "live-rw"])
+
+    def test_on_drops_only_the_live_ones(self):
+        self.assertEqual(self.ids(exclude_live=True), ["free-math", "free-rw"])
+
+    def test_composes_with_the_other_filters(self):
+        self.assertEqual(self.ids(section="RW", exclude_live=True), ["free-rw"])
+
+    def test_taxonomy_reports_the_live_count_alongside_the_total(self):
+        # The filter panel needs both numbers to say what the toggle will cost
+        # without asking the server a second time.
+        rows = session.taxonomy(self.conn)
+        self.assertEqual(sum(r["n"] for r in rows), 4)
+        self.assertEqual(sum(r["live_n"] for r in rows), 2)
+
+    def test_an_external_id_in_its_own_sections_list_is_live(self):
+        live = {"RW": {"x"}, "MATH": set()}
+        stub = {"_id": "x", "_path": "external_id", "_section": "RW"}
+        self.assertTrue(pipeline.is_live(stub, live))
+
+    def test_an_ibn_item_is_never_live(self):
+        # The two lists are external_ids. An ibn item has none, so it cannot be
+        # on a practice test however the lists change.
+        live = {"RW": {"ibn-1"}, "MATH": set()}
+        stub = {"_id": "ibn-1", "_path": "ibn", "_section": "RW"}
+        self.assertFalse(pipeline.is_live(stub, live))
+
+    def test_a_list_does_not_reach_across_sections(self):
+        # Reading ids are checked against RW only. A collision with a Math id
+        # must not take the Math question out.
+        live = {"RW": {"shared"}, "MATH": set()}
+        stub = {"_id": "shared", "_path": "external_id", "_section": "MATH"}
+        self.assertFalse(pipeline.is_live(stub, live))
+
+    def test_a_missing_list_is_not_an_error(self):
+        # load_live() returns empty sets when data/live.json has never been
+        # written, and every question then reads as not live.
+        stub = {"_id": "x", "_path": "external_id", "_section": "RW"}
+        self.assertFalse(pipeline.is_live(stub, {"RW": set(), "MATH": set()}))
+
+
+class TestPracticeSets(unittest.TestCase):
+    """A set is a frozen list of questions plus the progress against it.
+
+    Two things are worth pinning. It stays active until `finished_at` is set,
+    which is what decides whether it shows on Home or in the history. And it
+    merges last-write-wins on `updated_at`, because unlike an attempt a set
+    changes as it is worked through, so two devices can both hold a version.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.conn = db.connect(os.path.join(self.dir, "t.db"))
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def blank(self, *ids):
+        return [{"question_id": q, "response": None, "correct": 0, "seconds": 0}
+                for q in ids]
+
+    def test_a_new_set_is_active_and_unanswered(self):
+        got = session.put_set(self.conn, "s1", self.blank("a", "b", "c"),
+                              created_at=100, updated_at=100)
+        self.assertIsNone(got["finished_at"])
+        self.assertEqual((got["total"], got["answered"], got["correct"]), (3, 0, 0))
+
+    def test_active_and_finished_are_different_lists(self):
+        session.put_set(self.conn, "open", self.blank("a"), created_at=1, updated_at=1)
+        session.put_set(self.conn, "done", self.blank("b"), created_at=2, updated_at=2,
+                        finished_at=3)
+        self.assertEqual([s["id"] for s in session.list_sets(self.conn, active=True)],
+                         ["open"])
+        self.assertEqual([s["id"] for s in session.list_sets(self.conn, active=False)],
+                         ["done"])
+        self.assertEqual(len(session.list_sets(self.conn)), 2)
+
+    def test_progress_counts_answers_not_attempts(self):
+        items = [
+            {"question_id": "a", "response": "B", "correct": 1, "seconds": 40},
+            {"question_id": "b", "response": "C", "correct": 0, "seconds": 20},
+            {"question_id": "c", "response": None, "correct": 0, "seconds": 0},
+        ]
+        got = session.put_set(self.conn, "s1", items, created_at=1, updated_at=2)
+        self.assertEqual((got["total"], got["answered"], got["correct"]), (3, 2, 1))
+
+    def test_a_blank_string_is_not_an_answer(self):
+        # An SPR box that was focused and left empty must not count as answered.
+        items = [{"question_id": "a", "response": "", "correct": 0, "seconds": 0}]
+        self.assertEqual(session.put_set(
+            self.conn, "s1", items, created_at=1, updated_at=1)["answered"], 0)
+
+    def test_a_newer_write_wins(self):
+        session.put_set(self.conn, "s1", self.blank("a", "b"), created_at=1, updated_at=1)
+        session.put_set(self.conn, "s1", self.blank("a"), created_at=1, updated_at=5)
+        self.assertEqual(session.get_set(self.conn, "s1")["total"], 1)
+
+    def test_a_stale_write_loses(self):
+        # The case this exists for: a slow request from a tab that has been open
+        # since before the set was finished elsewhere.
+        session.put_set(self.conn, "s1", self.blank("a", "b"), created_at=1,
+                        updated_at=10, finished_at=10)
+        session.put_set(self.conn, "s1", self.blank("a", "b", "c"), created_at=1,
+                        updated_at=4)
+        got = session.get_set(self.conn, "s1")
+        self.assertEqual(got["total"], 2)
+        self.assertEqual(got["finished_at"], 10)
+
+    def test_finishing_moves_it_between_the_lists(self):
+        session.put_set(self.conn, "s1", self.blank("a"), created_at=1, updated_at=1)
+        self.assertEqual(len(session.list_sets(self.conn, active=True)), 1)
+        session.put_set(self.conn, "s1", self.blank("a"), created_at=1, updated_at=2,
+                        finished_at=2)
+        self.assertEqual(len(session.list_sets(self.conn, active=True)), 0)
+        self.assertEqual(len(session.list_sets(self.conn, active=False)), 1)
+
+    def test_the_question_list_is_kept_in_order(self):
+        # A set is the same questions in the same order every time you open it.
+        session.put_set(self.conn, "s1", self.blank("c", "a", "b"),
+                        created_at=1, updated_at=1)
+        got = session.get_set(self.conn, "s1")
+        self.assertEqual([i["question_id"] for i in got["items"]], ["c", "a", "b"])
+
+    def test_filters_and_pace_survive_the_round_trip(self):
+        filters = {"section": "MATH", "size": 20, "speed": 1.25}
+        session.put_set(self.conn, "s1", self.blank("a"), filters=filters,
+                        created_at=1, updated_at=1)
+        self.assertEqual(session.get_set(self.conn, "s1")["filters"], filters)
+
+    def test_active_sets_come_back_oldest_first(self):
+        # They are a queue of work on the home page, so the oldest leads.
+        for i, sid in enumerate(["third", "first", "second"]):
+            session.put_set(self.conn, sid, self.blank("a"),
+                            created_at=[30, 10, 20][i], updated_at=1)
+        self.assertEqual([s["id"] for s in session.list_sets(self.conn, active=True)],
+                         ["first", "second", "third"])
+
+    def test_finished_sets_come_back_newest_first(self):
+        for sid, at in (("old", 10), ("new", 30), ("mid", 20)):
+            session.put_set(self.conn, sid, self.blank("a"), created_at=1,
+                            updated_at=1, finished_at=at)
+        self.assertEqual([s["id"] for s in session.list_sets(self.conn, active=False)],
+                         ["new", "mid", "old"])
+
+    def test_delete_removes_it(self):
+        session.put_set(self.conn, "s1", self.blank("a"), created_at=1, updated_at=1)
+        session.delete_set(self.conn, "s1")
+        self.assertIsNone(session.get_set(self.conn, "s1"))
+
+    def test_a_missing_set_is_none_not_an_error(self):
+        self.assertIsNone(session.get_set(self.conn, "never-existed"))
 
 
 class TestMistakeLog(unittest.TestCase):

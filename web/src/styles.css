@@ -1430,3 +1430,103 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .review-badge { min-width: 54px; padding: 3px 7px; font-size: 10.5px; }
   .review-detail { padding: 10px 14px 24px; }
 }
+
+/* ==================================================== practice sets
+   A set is a fixed, randomly drawn run of questions with a score at the end.
+   The cards below are used twice: unfinished sets queued on Home, and finished
+   ones in the history on Review. */
+
+.setlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.setcard {
+  display: flex; align-items: stretch; gap: 10px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg);
+}
+.setcard:hover { border-color: var(--line-2); }
+.setcard-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px; background: none; border: none; cursor: pointer;
+  text-align: left; color: var(--ink); font: inherit;
+}
+.setcard-t { font-size: 14.5px; font-weight: 650; }
+.setcard-b { font-size: 12.5px; color: var(--muted); }
+.setcard-main .meter { margin-top: 6px; }
+.setcard-side {
+  display: flex; align-items: center; gap: 6px; padding: 0 14px 0 0; flex: none;
+}
+.setcard-go { font-size: 13px; font-weight: 600; color: var(--accent); }
+.setcard-drop {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-sm);
+  background: none; border: none; cursor: pointer; color: var(--muted);
+}
+.setcard-drop:hover { background: var(--red-soft); color: var(--red); }
+.setcard-score { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.setcard-score.good { color: var(--green); }
+.setcard-score.mid  { color: var(--amber-text); }
+.setcard-score.poor { color: var(--red); }
+
+/* The custom set-size box, shaped like a chip so it sits in the same row. */
+.chip-input { display: inline-flex; align-items: center; gap: 8px; cursor: text; }
+.chip-input input {
+  width: 52px; border: none; background: none; font: inherit; font-size: 13.5px;
+  color: var(--ink); padding: 0; text-align: center;
+}
+.chip-input input:focus { outline: none; }
+.chip-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* Spinners make the chip lopsided and the value is typed, not stepped. */
+.chip-input input::-webkit-outer-spin-button,
+.chip-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.chip-input input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+/* Only used behind a confirm step, never as a first click. */
+.btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn.danger:hover { background: #a60d26; border-color: #a60d26; }
+
+/* The clock goes red for the last minute, the one moment it should interrupt. */
+.clock.is-low { color: var(--red); }
+
+.nav-review { margin-bottom: 10px; }
+.nav-foot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+/* ---- the end-of-set review page, modelled on Bluebook's ---- */
+.setreview {
+  position: fixed; inset: 0; z-index: 60; background: var(--bg);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.setreview-top {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: var(--chrome);
+  background-image: var(--rule); background-size: 100% 2px;
+  background-repeat: repeat-x; background-position: left bottom;
+}
+.setreview-clock {
+  font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.setreview-clock.is-low { color: var(--red); }
+.setreview-body { flex: 1; max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; width: 100%; }
+.setreview-h { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 6px; text-align: center; }
+.setreview-sub { font-size: 14px; color: var(--muted); margin: 0 0 26px; text-align: center; }
+.setreview-legend { justify-content: center; margin-bottom: 22px; }
+.setreview-grid { grid-template-columns: repeat(10, 1fr); }
+.setreview-foot { margin-top: 34px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.setreview-foot .hint { text-align: center; max-width: 46ch; margin: 0; }
+
+/* ---- the score screen ---- */
+.setdone { text-align: center; padding: 18px 0 34px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
+.setdone-label { font-size: 12.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.setdone-score { font-size: 52px; font-weight: 700; letter-spacing: -.03em; margin: 0; font-variant-numeric: tabular-nums; }
+.setdone-score.good { color: var(--green); }
+.setdone-score.mid  { color: var(--amber-text); }
+.setdone-score.poor { color: var(--red); }
+.setdone-score .dim { color: var(--muted); font-weight: 600; }
+.setdone-sub { font-size: 14px; color: var(--muted); margin: 8px 0 20px; }
+.setdone-acts { display: flex; justify-content: center; gap: 10px; }
+.setdone .hint { text-align: center; max-width: 44ch; margin: 12px auto 0; }
+
+@media (max-width: 819px) {
+  .setreview-body { padding: 26px 16px 60px; }
+  .setreview-h { font-size: 21px; }
+  .setreview-grid { grid-template-columns: repeat(6, 1fr); }
+  .setdone-score { font-size: 42px; }
+  .setcard-side { padding-right: 10px; }
+}

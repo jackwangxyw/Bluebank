@@ -50,7 +50,7 @@ npm run build:pages   # -> dist-pages/  static, no server
 
 The two don't share progress. Answering on one doesn't show up on the other, and only the static build can sync.
 
-The static build depends on College Board sending `Access-Control-Allow-Origin: *`, which they currently do on all three endpoints. That header is theirs to change, and if they tighten it the static build stops working in a browser while the Python one keeps going, since a server ignores CORS. That's most of the reason both still exist.
+The static build depends on College Board sending `Access-Control-Allow-Origin: *`, which they currently do on all four endpoints. That header is theirs to change, and if they tighten it the static build stops working in a browser while the Python one keeps going, since a server ignores CORS. That's most of the reason both still exist.
 
 ## Deploying the Static Build
 [.github/workflows/pages.yml](.github/workflows/pages.yml) builds `dist-pages/` and publishes it on every push to main. It runs `npm test` first and won't deploy a red suite. Two things it can't do for you.
@@ -79,7 +79,7 @@ Attempts merge by union on a uuid, so a sync that fails, runs twice, or arrives 
 ## Commands
 | Command | What it does |
 | :--- | :--- |
-| `index` | Pass 1, builds `data/index.json` from two API calls |
+| `index` | Pass 1, builds `data/index.json` from two API calls, plus `data/live.json` |
 | `fetch` | Pass 2, downloads question bodies into `raw/`, resumable |
 | `normalize` | Pass 3, parses everything into SQLite |
 | `build` | All three |
@@ -110,13 +110,14 @@ On the static build it's IndexedDB under database `bluebank`, and `indexedDB.del
 The cached index is re-read after a week, in the background so it never costs you a cold start. Without that it was fetched once on your first visit and never again, so new questions added to the bank would never show up on that device.
 
 ## The API
-Three endpoints, no authentication of any kind. Confirmed with bare curl sending only `Content-Type`, and confirmed again from a real browser on a foreign origin.
+Four endpoints, no authentication of any kind. Confirmed with bare curl sending only `Content-Type`, and confirmed again from a real browser on a foreign origin.
 
 ```
 POST https://qbank-api.collegeboard.org/msreportingquestionbank-prod/questionbank/digital/get-questions
      {"asmtEventId": 99, "test": 1, "domain": "INI,CAS,EOI,SEC"}   # 1 = RW, 2 = Math
 POST .../questionbank/digital/get-question   {"external_id": "..."}
 GET  https://saic.collegeboard.org/disclosed/{ibn}.json
+GET  .../questionbank/lookup                 # no body, see below
 ```
 
 Math domains are `H,P,Q,S`. Difficulty is E/M/H, but there's also `score_band_range_cd`, which runs 1 to 7 and is finer, so use that one if you ever build adaptive logic on top of this.
@@ -124,6 +125,26 @@ Math domains are `H,P,Q,S`. Difficulty is E/M/H, but there's also `score_band_ra
 The whole index is those first two calls and takes 1.7 seconds. They return 3,770 stubs, three of which are the same question filed twice under different ids, so the pipeline keeps the newer of each pair and you end up with 3,767. The individual bodies are what take five minutes.
 
 A stub carries an `external_id` or an `ibn`, never both. The 459 `ibn` items are the older disclosed set, from a different host in a different shape, and they're the ones the parser has to work for.
+
+`lookup` is the one that isn't obvious. It returns `readingLiveItems` and `mathLiveItems`, 1,110 and 927 external_ids, and those are the questions that also sit on an official full-length practice test. It's what College Board's own bank means by "Exclude Active Questions", and it's how the same filter works here. Their frontend matches on `external_id` against the list for that section only, so an `ibn` item is never on a test and a Reading id can't take a Math question out; both rules are copied rather than guessed, and pinned in the tests on both sides.
+
+## Practice Sets
+A set is a fixed run: pick a size on the home page and you get that many questions drawn at random from whatever the filters allow, frozen at that point, with a score at the end. Leave the size on All and nothing changes, you get the open-ended practice the app has always done.
+
+The questions are drawn randomly rather than taken off the top of the shuffle, so two 20-question Math sets are two different sets. Once drawn they never move: the same questions in the same order when you come back tomorrow or open it on your phone.
+
+Set the pace and you get a clock. It's priced per question from the real test, which gives Reading and Writing 32 minutes for 27 questions and Math 35 for 22, so 71 and 95 seconds each. 0.75x is three quarters of that and 1.5x is half again. Running out ends the set the way it ends a module on the day.
+
+Unfinished sets sit on the home page until you go back to them. Finished ones move to the review page, with the score, and open onto the same screen you saw when you finished. You can run one again, which is the same questions as a new set so the old score stays where it is, and you can delete either kind.
+
+`items_json` on a set is a snapshot rather than a view over `attempts`. Answer one of those questions again next week and the set still shows what you scored on the day. That is also why deleting a set leaves your attempt history alone: the attempts belong to the questions, not to the set.
+
+Unlike an attempt, a set changes while you work through it, so the sync merge is last write wins on `updated_at` rather than a union on the uuid. If you already run your own sync server, re-run [worker/schema.sql](worker/schema.sql) and re-paste the worker to pick up the `sets` table.
+
+## Practice Tests
+2,019 of the 3,767 questions are also on the official practice tests, so working straight through the bank spoils every one of them. The filter on the home page takes those out and leaves 1,748, which is 753 Reading and Writing and 995 Math.
+
+The list is fetched in pass 1 and written to `data/live.json`, then `normalize` turns it into a `live` column. Pass 3 stays a pure function of what's on disk that way, and a `lookup` that fails costs you the filter rather than the build. The static build fetches the same list into IndexedDB and refreshes it whenever it refreshes the index, since a new practice test is what changes both.
 
 ## Vendored Assets
 MathJax is vendored at [web/public/mathjax/mml-svg.js](web/public/mathjax) and outputs SVG, so there are no font files to fetch and it works offline. Noto is self hosted in [web/src/fonts](web/src/fonts) rather than loaded from Google, since a font CDN sees the IP of every visitor whether or not they ever sign in.
@@ -167,8 +188,8 @@ The finalizer isn't optional. Raw FNV-1a barely reaches the high bits, which are
 
 ## Tests
 ```
-python -m pytest tests -q     # 63
-cd web && npm test            # 64
+python -m pytest tests -q     # 86
+cd web && npm test            # 86
 ```
 
 The rationale parser and the grader exist in both Python and TypeScript, and the TypeScript ports were checked against the Python by running both over the whole corpus: every rationale split identically, every explanation classified identically, every recovered key identical. The committed tests are the standing guard, that run was the one off proof. The HTML in the committed cases is paraphrased rather than copied, so no question content is in the repo.

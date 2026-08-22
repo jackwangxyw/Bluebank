@@ -29,8 +29,8 @@ import * as cb from './lib/cbApi'
 import * as store from './lib/store'
 import * as sync from './lib/sync'
 import type {
-  Annotation, Filters, GradeResult, Mistake, MistakeTag, Question, SetItem,
-  Stats, StoredQuestion, TaxonomyRow,
+  Annotation, Filters, GradeResult, Mistake, MistakeTag, PracticeSet, Question,
+  Section, SetAnswer, SetItem, Stats, StoredQuestion, TaxonomyRow,
 } from './types'
 
 /** How many questions ahead to warm the cache while you read the current one. */
@@ -40,6 +40,8 @@ interface Cache {
   stubs: Stub[]
   attempts: Map<string, store.Attempt[]>
   flagged: Set<string>
+  /** external_ids on an official practice test, keyed by the section they are in. */
+  live: Record<Section, Set<string>>
 }
 
 let cache: Cache | null = null
@@ -56,6 +58,41 @@ const INDEX_AGE_KEY = 'index.fetchedAt'
  * the bank changes a couple of times a year, so anything in that range is fine.
  */
 const INDEX_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Cached practice-test ids. Refreshed with the index rather than on its own
+ * clock, because the two change together: a new practice test is what adds
+ * both new questions and new live items.
+ */
+const LIVE_KEY = 'live.items'
+
+const NO_LIVE: Record<Section, Set<string>> = { RW: new Set(), MATH: new Set() }
+
+function toLive(items: cb.LiveItems | undefined): Record<Section, Set<string>> {
+  if (!items) return NO_LIVE
+  return { RW: new Set(items.RW), MATH: new Set(items.MATH) }
+}
+
+/**
+ * Read the list, fetching it once if it has never been stored.
+ *
+ * A failure here is not allowed to stop a boot. The filter is a nicety and the
+ * bank is entirely usable without it, so an empty list just means the checkbox
+ * has nothing to remove.
+ */
+async function loadLive(force = false): Promise<Record<Section, Set<string>>> {
+  if (!force) {
+    const cached = await store.getMeta<cb.LiveItems>(LIVE_KEY)
+    if (cached) return toLive(cached)
+  }
+  try {
+    const fetched = await cb.fetchLiveItems()
+    await store.setMeta(LIVE_KEY, fetched)
+    return toLive(fetched)
+  } catch {
+    return NO_LIVE
+  }
+}
 
 /** Index first, bodies later. Everything below waits on this. */
 async function boot(): Promise<Cache> {
@@ -79,8 +116,12 @@ async function boot(): Promise<Cache> {
       }
     }
 
-    const { attempts, flagged } = await readProgress()
-    cache = { stubs, attempts, flagged }
+    // In parallel with the progress read: it is one small GET and the index
+    // request has already paid the connection cost.
+    const [{ attempts, flagged }, live] = await Promise.all([
+      readProgress(), loadLive(),
+    ])
+    cache = { stubs, attempts, flagged, live }
     return cache
   })()
   return booting
@@ -126,7 +167,11 @@ export async function refreshIndex(): Promise<number> {
   const stubs = await cb.fetchIndex()
   await store.saveIndex(stubs)
   await store.setMeta(INDEX_AGE_KEY, Date.now())
-  if (cache) cache.stubs = stubs
+  // Re-read the practice-test ids at the same time. A test being released is
+  // what changes both, so refreshing one without the other would leave the
+  // filter describing an older bank than the counts next to it.
+  const live = await loadLive(true)
+  if (cache) { cache.stubs = stubs; cache.live = live }
   return stubs.length
 }
 
@@ -169,11 +214,29 @@ function lastAttempt(c: Cache, id: string): store.Attempt | null {
 export const anyOf = <T,>(list: T[] | undefined, value: T | undefined): boolean =>
   !list?.length || (value !== undefined && list.includes(value))
 
+/**
+ * On an official full-length practice test.
+ *
+ * Twin of `is_live` in bluebank/pipeline.py and it has to agree with it, the
+ * same way the shuffle key does: the localhost build stores the answer as a
+ * column at normalize time and this one decides it per question at filter time,
+ * so a disagreement would mean the two backends offered different sets.
+ *
+ * Matched on external_id and only against its own section's list, which is what
+ * College Board's bank does. An `ibn` item has no external_id and so is never
+ * live; checking `_path` rather than trusting the lists to be disjoint from the
+ * ibn ids keeps that true even if a future list overlaps by accident.
+ */
+export function isLive(stub: Stub, live: Record<Section, Set<string>>): boolean {
+  return stub._path === 'external_id' && (live[stub._section]?.has(stub._id) ?? false)
+}
+
 function matches(stub: Stub, c: Cache, f: Filters): boolean {
   if (f.section && stub._section !== f.section) return false
   if (!anyOf(f.domains, stub.primary_class_cd)) return false
   if (!anyOf(f.skills, stub.skill_cd)) return false
   if (!anyOf(f.difficulties, stub.difficulty)) return false
+  if (f.excludeLive && isLive(stub, c.live)) return false
 
   if (f.statuses?.length) {
     const last = lastAttempt(c, stub._id)
@@ -226,11 +289,12 @@ export async function taxonomy(): Promise<{ taxonomy: TaxonomyRow[]; stats: Stat
         skill: stub.skill_cd ?? '',
         skill_name: stub.skill_desc ?? '',
         difficulty: stub.difficulty ?? ('' as TaxonomyRow['difficulty']),
-        n: 0, seen: 0, correct: 0,
+        n: 0, live_n: 0, seen: 0, correct: 0,
       }
       rows.set(key, row)
     }
     row.n++
+    if (isLive(stub, c.live)) row.live_n++
     const last = lastAttempt(c, stub._id)
     if (last) {
       row.seen++
@@ -243,6 +307,8 @@ export async function taxonomy(): Promise<{ taxonomy: TaxonomyRow[]; stats: Stat
 export async function questionSet(filters: Filters):
     Promise<{ count: number; questions: SetItem[] }> {
   const c = await boot()
+  // The whole pool, never a slice. A practice set draws its questions at
+  // random from this and freezes them, so there is nothing to limit here.
   const questions = c.stubs
     .filter((stub) => matches(stub, c, filters))
     .map((stub) => toSetItem(stub, c))
@@ -383,4 +449,64 @@ export async function stats(): Promise<Stats> {
     accuracy: attempts ? correct / attempts : null,
     by_domain: [...byDomain.values()].sort((a, b) => b.n - a.n),
   }
+}
+
+// ------------------------------------------------------------- practice sets
+
+/**
+ * Active ones oldest first, because they are a queue of work waiting on the
+ * home page. Finished ones newest first, because that is history. Same order
+ * the Python backend returns them in.
+ */
+export async function listSets(active?: boolean, limit = 50): Promise<PracticeSet[]> {
+  let rows = await store.loadSets()
+  if (active === true) rows = rows.filter((r) => r.finished_at === null)
+  if (active === false) rows = rows.filter((r) => r.finished_at !== null)
+  rows.sort((a, b) => (active === true
+    ? a.created_at - b.created_at
+    : (b.finished_at ?? b.created_at) - (a.finished_at ?? a.created_at))
+    || a.id.localeCompare(b.id))
+  return rows.slice(0, limit).map((row) => summarise(row, false))
+}
+
+export async function getSet(id: string): Promise<PracticeSet> {
+  const row = await store.loadSet(id)
+  if (!row) throw new Error(`unknown set ${id}`)
+  return summarise(row, true)
+}
+
+export async function saveSet(set: SetInput): Promise<PracticeSet> {
+  await store.saveSet(set)
+  sync.track('set', set.id)
+  return getSet(set.id)
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  await store.removeSet(id)
+}
+
+export interface SetInput {
+  id: string
+  created_at: number
+  finished_at: number | null
+  seconds: number
+  filters: Filters
+  items: SetAnswer[]
+}
+
+function summarise(row: store.SetRecord, withItems: boolean): PracticeSet {
+  const items = row.items ?? []
+  const out: PracticeSet = {
+    id: row.id,
+    created_at: row.created_at,
+    finished_at: row.finished_at,
+    updated_at: row.updated_at,
+    seconds: row.seconds,
+    filters: row.filters ?? {},
+    total: items.length,
+    answered: items.filter((i) => i.response !== null && i.response !== '').length,
+    correct: items.filter((i) => i.correct).length,
+  }
+  if (withItems) out.items = items
+  return out
 }

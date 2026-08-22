@@ -7,8 +7,8 @@
  * how one is chosen.
  */
 import type {
-  Annotation, Attempt, Filters, GradeResult, Mistake, MistakeTag, Question,
-  SetItem, Stats, TaxonomyRow,
+  Annotation, Attempt, Filters, GradeResult, Mistake, MistakeTag, PracticeSet,
+  Question, SetAnswer, SetItem, Stats, TaxonomyRow,
 } from './types'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -34,6 +34,7 @@ export function questionSet(filters: Filters) {
   for (const s of filters.skills ?? []) query.append('skill', s)
   for (const d of filters.difficulties ?? []) query.append('difficulty', d)
   for (const s of filters.statuses ?? []) query.append('status', s)
+  if (filters.excludeLive) query.set('exclude_live', '1')
   return call<{ count: number; questions: SetItem[] }>(`/api/set?${query}`)
 }
 
@@ -101,4 +102,41 @@ export function saveAnnotations(id: string, annotations: Annotation[]) {
 
 export function stats() {
   return call<Stats>('/api/stats')
+}
+
+// ------------------------------------------------------------- practice sets
+
+/** `active` undefined lists both; true is unfinished, false is finished. */
+export function listSets(active?: boolean, limit = 50) {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (active !== undefined) query.set('active', active ? '1' : '0')
+  return call<{ sets: PracticeSet[] }>(`/api/sets?${query}`).then((d) => d.sets)
+}
+
+export function getSet(id: string) {
+  return call<{ set: PracticeSet }>(`/api/sets/${encodeURIComponent(id)}`)
+    .then((d) => d.set)
+}
+
+/** Create or update. The whole row goes up; the server guards on updated_at. */
+export function saveSet(set: SetInput) {
+  return call<{ set: PracticeSet }>('/api/sets', {
+    method: 'POST',
+    body: JSON.stringify({ ...set, updated_at: Date.now() }),
+  }).then((d) => d.set)
+}
+
+export function deleteSet(id: string) {
+  return call<{ deleted: string }>(
+    `/api/sets/${encodeURIComponent(id)}/delete`, { method: 'POST' },
+  ).then(() => undefined)
+}
+
+export interface SetInput {
+  id: string
+  created_at: number
+  finished_at: number | null
+  seconds: number
+  filters: Filters
+  items: SetAnswer[]
 }

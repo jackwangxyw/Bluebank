@@ -223,6 +223,45 @@ function cleanMistakes(raw) {
   return out
 }
 
+/**
+ * A practice set. Mutable until it is finished, so it carries updated_at and
+ * merges last-write-wins.
+ * @param {unknown} raw
+ */
+function cleanSets(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  for (const r of raw.slice(0, MAX_ITEMS_PER_REQUEST)) {
+    if (!r || !isStr(r.id) || !isInt(r.created_at) || !isInt(r.updated_at)) continue
+    if (!Array.isArray(r.items)) continue
+    // A set is at most a few hundred questions; anything past this is not one.
+    if (r.items.length > 500) continue
+    const items = []
+    for (const i of r.items) {
+      if (!i || !isStr(i.question_id)) continue
+      items.push({
+        question_id: i.question_id,
+        response: typeof i.response === 'string' ? i.response.slice(0, 200) : null,
+        correct: i.correct ? 1 : 0,
+        seconds: isInt(i.seconds) ? Math.trunc(i.seconds) : 0,
+      })
+    }
+    const filters = r.filters && typeof r.filters === 'object' ? r.filters : {}
+    if (JSON.stringify(filters).length > 4000) continue
+    out.push({
+      id: r.id,
+      created_at: Math.trunc(r.created_at),
+      // Null is meaningful here: it is what "still active" looks like.
+      finished_at: isInt(r.finished_at) ? Math.trunc(r.finished_at) : null,
+      updated_at: Math.trunc(r.updated_at),
+      seconds: isInt(r.seconds) ? Math.trunc(r.seconds) : 0,
+      filters,
+      items,
+    })
+  }
+  return out
+}
+
 /** @param {unknown} raw */
 function cleanAnnotations(raw) {
   if (!Array.isArray(raw)) return []
@@ -301,6 +340,7 @@ async function handleSync(request, env, origin) {
   const marks = cleanMarks(body.marks)
   const annotations = cleanAnnotations(body.annotations)
   const mistakes = cleanMistakes(body.mistakes)
+  const sets = cleanSets(body.sets)
 
   if (attempts.length) {
     const count = await env.DB.prepare(
@@ -364,12 +404,29 @@ async function handleSync(request, env, origin) {
     ).bind(sub, m.question_id, JSON.stringify(m.tags), m.note, m.updated_at, seq))
   }
 
+  // Last-write-wins, guarded server-side like marks and annotations. A set is
+  // worked through over time, so two devices can both hold a version of it.
+  for (const s of sets) {
+    writes.push(env.DB.prepare(
+      'INSERT INTO sets'
+      + ' (sub, id, created_at, finished_at, updated_at, seconds, filters_json,'
+      + '  items_json, seq)'
+      + ' VALUES (?,?,?,?,?,?,?,?,?)'
+      + ' ON CONFLICT(sub, id) DO UPDATE SET'
+      + '   finished_at = excluded.finished_at, updated_at = excluded.updated_at,'
+      + '   seconds = excluded.seconds, filters_json = excluded.filters_json,'
+      + '   items_json = excluded.items_json, seq = excluded.seq'
+      + ' WHERE excluded.updated_at > sets.updated_at',
+    ).bind(sub, s.id, s.created_at, s.finished_at, s.updated_at, s.seconds,
+           JSON.stringify(s.filters), JSON.stringify(s.items), seq))
+  }
+
   if (writes.length) await env.DB.batch(writes)
 
   // Deliberately returns the caller's own writes back to it. For the two LWW
   // stores that is how the client learns what the server actually decided, so a
   // rejected update self-corrects on the same round trip.
-  const [outAttempts, outMarks, outAnnotations, outMistakes] = await env.DB.batch([
+  const [outAttempts, outMarks, outAnnotations, outMistakes, outSets] = await env.DB.batch([
     env.DB.prepare(
       'SELECT id, question_id, answered_at, response, correct, seconds'
       + ' FROM attempts WHERE sub = ? AND seq > ?').bind(sub, since),
@@ -381,6 +438,10 @@ async function handleSync(request, env, origin) {
     ).bind(sub, since),
     env.DB.prepare(
       'SELECT question_id, tags_json, note, updated_at FROM mistakes WHERE sub = ? AND seq > ?',
+    ).bind(sub, since),
+    env.DB.prepare(
+      'SELECT id, created_at, finished_at, updated_at, seconds, filters_json,'
+      + ' items_json FROM sets WHERE sub = ? AND seq > ?',
     ).bind(sub, since),
   ])
 
@@ -400,6 +461,21 @@ async function handleSync(request, env, origin) {
       try { tags = JSON.parse(row.tags_json) } catch { tags = [] }
       return {
         question_id: row.question_id, tags, note: row.note, updated_at: row.updated_at,
+      }
+    }),
+    sets: (outSets.results || []).map((row) => {
+      let filters = {}
+      let items = []
+      try { filters = JSON.parse(row.filters_json) } catch { filters = {} }
+      try { items = JSON.parse(row.items_json) } catch { items = [] }
+      return {
+        id: row.id,
+        created_at: row.created_at,
+        finished_at: row.finished_at,
+        updated_at: row.updated_at,
+        seconds: row.seconds,
+        filters,
+        items,
       }
     }),
   }, 200, origin)
@@ -439,6 +515,7 @@ async function handleDelete(request, env, origin) {
     env.DB.prepare('DELETE FROM marks       WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM annotations WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM mistakes    WHERE sub = ?').bind(sub),
+    env.DB.prepare('DELETE FROM sets        WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM cursors     WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM sessions    WHERE sub = ?').bind(sub),
     env.DB.prepare('DELETE FROM users       WHERE sub = ?').bind(sub),

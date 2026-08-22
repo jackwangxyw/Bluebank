@@ -70,8 +70,49 @@ def _set(conn, query, body):
         conn,
         section=_one(query, "section"), domains=_many(query, "domain"),
         skills=_many(query, "skill"), difficulties=_many(query, "difficulty"),
-        statuses=_many(query, "status"), order=_one(query, "order", "shuffled"))
+        statuses=_many(query, "status"), order=_one(query, "order", "shuffled"),
+        exclude_live=_one(query, "exclude_live") == "1")
     return {"count": len(rows), "questions": rows}
+
+
+@Api.route("GET", r"/api/sets")
+def _sets(conn, query, body):
+    """?active=1 for the ones still going, ?active=0 for finished, neither for all."""
+    flag = _one(query, "active")
+    active = None if flag is None else flag == "1"
+    return {"sets": session.list_sets(
+        conn, limit=int(_one(query, "limit", "50")), active=active)}
+
+
+@Api.route("POST", r"/api/sets")
+def _save_set(conn, query, body):
+    """Create or update a set. The client owns the row and sends it back whole.
+
+    The client mints the id, so a retry writes the same row rather than a
+    second set.
+    """
+    set_id = body.get("id")
+    if not set_id:
+        raise ValueError("a set needs an id")
+    return {"set": session.put_set(
+        conn, set_id, body.get("items") or [], filters=body.get("filters"),
+        seconds=body.get("seconds"), created_at=body.get("created_at"),
+        finished_at=body.get("finished_at"), updated_at=body.get("updated_at"))}
+
+
+@Api.route("GET", r"/api/sets/([^/]+)")
+def _one_set(conn, query, body, set_id):
+    found = session.get_set(conn, set_id)
+    if found is None:
+        raise KeyError(set_id)
+    return {"set": found}
+
+
+@Api.route("POST", r"/api/sets/([^/]+)/delete")
+def _drop_set(conn, query, body, set_id):
+    """Abandon a set. POST rather than DELETE because the handler has no do_DELETE."""
+    session.delete_set(conn, set_id)
+    return {"deleted": set_id}
 
 
 @Api.route("GET", r"/api/mistakes")

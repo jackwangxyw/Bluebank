@@ -7,6 +7,18 @@ interface Props {
   title: string
   onGo: (index: number) => void
   onClose: () => void
+  /**
+   * Only a practice set has one. Bluebook puts this button in exactly this
+   * spot, under the grid, and it is how you reach the end-of-module review
+   * page; open practice has no end to review, so it has no button.
+   */
+  onReviewPage?: () => void
+  /**
+   * Cell state per question, when the caller knows better than the question's
+   * own history does. A practice set does: its cells have to show how THIS set
+   * is going, not whether you happened to answer the same question last week.
+   */
+  states?: CellState[]
 }
 
 export type CellState = 'unanswered' | 'first' | 'retry' | 'wrong'
@@ -22,7 +34,9 @@ export function cellState(item: SetItem): CellState {
   return attempts > 1 ? 'retry' : 'first'
 }
 
-export function Navigator({ items, current, title, onGo, onClose }: Props) {
+export function Navigator({
+  items, current, title, onGo, onClose, onReviewPage, states,
+}: Props) {
   return (
     <>
       <div className="nav-scrim" onClick={onClose} />
@@ -46,7 +60,7 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
           {items.map((item, index) => (
             <button
               key={item.id}
-              className={`nav-cell is-${cellState(item)}`
+              className={`nav-cell is-${states?.[index] ?? cellState(item)}`
                 + (index === current ? ' is-current' : '')
                 + (item.flagged ? ' is-flagged' : '')}
               onClick={() => { onGo(index); onClose() }}
@@ -58,7 +72,12 @@ export function Navigator({ items, current, title, onGo, onClose }: Props) {
         </div>
 
         <div className="nav-foot">
-          {items.length.toLocaleString()} questions in this set
+          {onReviewPage ? (
+            <button className="btn nav-review" onClick={onReviewPage}>
+              Go to Review Page
+            </button>
+          ) : null}
+          <span>{items.length.toLocaleString()} questions in this set</span>
         </div>
       </div>
     </>

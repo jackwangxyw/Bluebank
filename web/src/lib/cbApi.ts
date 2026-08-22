@@ -18,6 +18,8 @@ const LIST_URL = 'https://qbank-api.collegeboard.org/msreportingquestionbank-pro
 const DETAIL_URL = 'https://qbank-api.collegeboard.org/msreportingquestionbank-prod'
   + '/questionbank/digital/get-question'
 const IBN_URL = (ibn: string) => `https://saic.collegeboard.org/disclosed/${ibn}.json`
+const LOOKUP_URL = 'https://qbank-api.collegeboard.org/msreportingquestionbank-prod'
+  + '/questionbank/lookup'
 
 const SAT_EVENT_ID = 99
 const RW = 1
@@ -69,6 +71,26 @@ export async function fetchIndex(): Promise<Stub[]> {
     return rows.map((row) => tagStub(row, section))
   }))
   return dedupeStubs(pages.flat())
+}
+
+/** The external_ids that also appear on an official full-length practice test. */
+export interface LiveItems { RW: string[]; MATH: string[] }
+
+/**
+ * Fetch the practice-test question ids. One GET, no body, no auth, and the same
+ * `Access-Control-Allow-Origin: *` as the other three endpoints.
+ *
+ * This is the list behind "Exclude Active Questions" in College Board's own
+ * bank. Their UI matches it against external_id and against the matching
+ * section only, so an ibn item is never on a practice test; both of those are
+ * reproduced where the filter is applied.
+ */
+export async function fetchLiveItems(): Promise<LiveItems> {
+  const data = await request(LOOKUP_URL, { method: 'GET' })
+  return {
+    RW: Array.isArray(data?.readingLiveItems) ? data.readingLiveItems : [],
+    MATH: Array.isArray(data?.mathLiveItems) ? data.mathLiveItems : [],
+  }
 }
 
 /** One question body. The two payload shapes come from two different hosts. */

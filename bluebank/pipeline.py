@@ -15,6 +15,7 @@ from .db import connect
 DATA = Path("data")
 RAW = Path("raw")
 INDEX_PATH = DATA / "index.json"
+LIVE_PATH = DATA / "live.json"
 
 CONCURRENCY = 5   # measured at 12.2 req/s with no throttling; no reason to push
 
@@ -55,7 +56,53 @@ def build_index():
     print(f"  total {len(stubs)} unique questions"
           + (f" ({duplicates} duplicate ids collapsed)" if duplicates else "")
           + f" -> {INDEX_PATH}")
+
+    _write_live()
     return stubs
+
+
+def _write_live():
+    """Save the practice-test question ids next to the index.
+
+    Fetched here, in pass 1, rather than in pass 3, because normalize is a pure
+    function of what is already on disk and it is worth keeping it that way. A
+    failure is not fatal: the flag is a nicety and the whole bank is still
+    usable without it.
+    """
+    try:
+        lookup = api.fetch_lookup()
+    except Exception as exc:
+        print(f"  live items unavailable ({exc}); "
+              f"the practice-test filter will be empty until the next index")
+        return
+    live = {
+        "RW": sorted(set(lookup.get("readingLiveItems") or [])),
+        "MATH": sorted(set(lookup.get("mathLiveItems") or [])),
+    }
+    LIVE_PATH.write_text(json.dumps(live), encoding="utf-8")
+    print(f"  {len(live['RW'])} RW + {len(live['MATH'])} Math questions are on "
+          f"official practice tests -> {LIVE_PATH}")
+
+
+def load_live():
+    """{section: set of external_ids}. Empty when the file has not been written."""
+    if not LIVE_PATH.exists():
+        return {"RW": set(), "MATH": set()}
+    raw = json.loads(LIVE_PATH.read_text(encoding="utf-8"))
+    return {"RW": set(raw.get("RW") or []), "MATH": set(raw.get("MATH") or [])}
+
+
+def is_live(stub, live):
+    """Is this question also on an official full-length practice test?
+
+    Two rules, both taken from how the bank's own filter behaves. The lists are
+    external_ids, so an `ibn` item can never be on one however the lists change.
+    And each list is checked against its own section only, so a Reading id that
+    happened to collide with a Math id could not take the Math question out.
+    """
+    if stub["_path"] != "external_id":
+        return False
+    return stub["_id"] in live.get(stub["_section"], ())
 
 
 def load_index():
@@ -282,10 +329,11 @@ def import_questions(json_path, db_path=None):
 
 def normalize(db_path=None):
     stubs = load_index()
+    live = load_live()
     conn = connect(db_path) if db_path else connect()
     seen = set()
     flagged = {}
-    written = missing_raw = 0
+    written = missing_raw = live_count = 0
 
     for stub in stubs:
         path = _raw_path(stub)
@@ -295,6 +343,8 @@ def normalize(db_path=None):
         raw = json.loads(path.read_text(encoding="utf-8"))
         norm = (_normalize_external if stub["_path"] == "external_id"
                 else _normalize_ibn)(stub, raw)
+
+        live_flag = int(is_live(stub, live))
 
         explanations = None
         if norm["type"] == "mcq" and norm["options"]:
@@ -324,8 +374,8 @@ def normalize(db_path=None):
             INSERT INTO questions (id, source_path, section, domain, domain_name,
                 skill, skill_name, difficulty, band, type, stimulus_html, stem_html,
                 options_json, correct_json, rationale_html, explanations_json,
-                key_recovered, flags_json, update_date, retired)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+                key_recovered, flags_json, update_date, retired, live)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)
             ON CONFLICT(id) DO UPDATE SET
                 source_path=excluded.source_path, section=excluded.section,
                 domain=excluded.domain, domain_name=excluded.domain_name,
@@ -337,7 +387,7 @@ def normalize(db_path=None):
                 rationale_html=excluded.rationale_html,
                 explanations_json=excluded.explanations_json,
                 key_recovered=excluded.key_recovered, flags_json=excluded.flags_json,
-                update_date=excluded.update_date, retired=0
+                update_date=excluded.update_date, retired=0, live=excluded.live
         """, (
             stub["_id"], stub["_path"], stub["_section"],
             stub.get("primary_class_cd") or "",
@@ -350,10 +400,11 @@ def normalize(db_path=None):
             json.dumps(explanations) if explanations else None,
             norm["key_recovered"],
             json.dumps(norm["flags"]) if norm["flags"] else None,
-            stub["updateDate"],
+            stub["updateDate"], live_flag,
         ))
         seen.add(stub["_id"])
         written += 1
+        live_count += live_flag
 
     # The index is the source of truth, not an append-only feed. An id that
     # disappears is retired, not silently left in the DB as a live question.
@@ -364,6 +415,7 @@ def normalize(db_path=None):
 
     print(f"  wrote {written} questions" + (f", {missing_raw} raw files missing"
                                             if missing_raw else ""))
+    print(f"  on official practice tests: {live_count}")
     if retired:
         print(f"  {retired} questions no longer in the index -> marked retired")
     print(f"  flagged: {len(flagged)}")

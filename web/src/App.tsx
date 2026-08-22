@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as api from './api'
 import { Home } from './components/Home'
 import { Stats as StatsPage } from './components/Stats'
@@ -13,11 +13,16 @@ import { QuestionView } from './components/QuestionView'
 import { Desmos } from './components/Desmos'
 import { Icon } from './components/Icon'
 import { Mark } from './components/Mark'
+import { SetResults } from './components/SetResults'
+import type { CellState } from './components/Navigator'
+import { SetReview } from './components/SetReview'
+import { sample } from './lib/draw'
+import { setSeconds, formatClock as formatCountdown } from './lib/pacing'
 import { formatClock, useQuestionTimer } from './lib/useTimer'
 import * as sync from './lib/sync'
 import type {
-  Annotation, Filters, GradeResult, Mistake, Question, SetItem,
-  Stats, TaxonomyRow,
+  Annotation, Filters, GradeResult, Mistake, PracticeSet, Question, SetAnswer,
+  SetItem, Stats, TaxonomyRow,
 } from './types'
 
 const SECTION_LABEL = { RW: 'Reading and Writing', MATH: 'Math' } as const
@@ -34,7 +39,8 @@ const DIRECTIONS = {
 } as const
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'stats' | 'about' | 'review' | 'practice'>('home')
+  const [view, setView] =
+    useState<'home' | 'stats' | 'about' | 'review' | 'practice' | 'results'>('home')
 
   /** Bumped by a sync that pulled rows; drives the taxonomy refetch below. */
   const [dataVersion, setDataVersion] = useState(0)
@@ -54,6 +60,32 @@ export default function App() {
   const [crossOut, setCrossOut] = useState<Set<string>>(new Set())
   // On by default: the cross-out tool is more useful than it is intrusive.
   const [crossOutMode, setCrossOutMode] = useState(true)
+
+  /**
+   * The set being worked through, if this is a set rather than open practice.
+   *
+   * Its `items` are the frozen question list AND the progress against them, so
+   * everything about a set (which questions, in what order, how far in) lives
+   * in this one row and survives a reload or a second device.
+   */
+  const [activeSet, setActiveSet] = useState<PracticeSet | null>(null)
+  /**
+   * The same set, readable synchronously.
+   *
+   * Answering twice in quick succession used to lose the first answer: both
+   * handlers closed over the `activeSet` of their own render, so the second one
+   * rebuilt `items` from a copy that did not have the first answer in it yet.
+   * Every write goes through this ref so it always starts from the latest.
+   */
+  const activeSetRef = useRef<PracticeSet | null>(null)
+  const [activeSets, setActiveSets] = useState<PracticeSet[]>([])
+  /** The finished set being read back on the results screen. */
+  const [shownSet, setShownSet] = useState<PracticeSet | null>(null)
+  const [showSetReview, setShowSetReview] = useState(false)
+  /** Seconds left on the set clock. Null when the set is untimed. */
+  const [remaining, setRemaining] = useState<number | null>(null)
+
+  useEffect(() => { activeSetRef.current = activeSet }, [activeSet])
 
   const [showNavigator, setShowNavigator] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
@@ -139,6 +171,178 @@ export default function App() {
     return () => { stale = true }
   }, [current?.id, practising])
 
+  /** Reload the queue of unfinished sets shown on Home. */
+  const refreshActiveSets = useCallback(() => {
+    api.listSets(true).then(setActiveSets).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (view === 'home') refreshActiveSets()
+  }, [view, dataVersion, refreshActiveSets])
+
+  /**
+   * Turn the loaded pool into a set: draw `size` at random, freeze them, and
+   * start working through them.
+   *
+   * The draw happens here rather than in a backend because both backends hand
+   * the whole pool over anyway, and doing it once on the client is what keeps
+   * the two identical.
+   */
+  const startSet = useCallback(async () => {
+    if (!filters.size) { setIndex(0); setView('practice'); return }
+    try {
+      const chosen = sample(items, filters.size)
+      const created = await api.saveSet({
+        id: crypto.randomUUID(),
+        created_at: Math.floor(Date.now() / 1000),
+        finished_at: null,
+        seconds: 0,
+        filters,
+        items: chosen.map((q) => ({
+          question_id: q.id, response: null, correct: 0, seconds: 0,
+        })),
+      })
+      setActiveSet(created)
+      setItems(chosen)
+      setIndex(0)
+      setView('practice')
+    } catch (e) { setError((e as Error).message) }
+  }, [filters, items])
+
+  /** Put a set's frozen questions back on screen, at the first unanswered one. */
+  const openSet = useCallback(async (id: string) => {
+    try {
+      const set = await api.getSet(id)
+      const pool = await api.questionSet({})
+      const byId = new Map(pool.questions.map((q) => [q.id, q]))
+      // Order comes from the set, not the pool: that is what makes it the same
+      // set every time. A question retired since it was drawn simply drops out.
+      const ordered = (set.items ?? [])
+        .map((i) => byId.get(i.question_id))
+        .filter((q): q is SetItem => Boolean(q))
+      const firstOpen = (set.items ?? []).findIndex((i) => i.response === null)
+      setActiveSet(set)
+      setItems(ordered)
+      setIndex(firstOpen < 0 ? 0 : Math.min(firstOpen, ordered.length - 1))
+      setView('practice')
+    } catch (e) { setError((e as Error).message) }
+  }, [])
+
+  /**
+   * Drop a set for good, from either list.
+   *
+   * Deleting the set does not touch the attempts it produced: those are your
+   * practice history and belong to the questions, not to the set.
+   */
+  const dropSet = useCallback(async (id: string) => {
+    try {
+      await api.deleteSet(id)
+      if (activeSet?.id === id) setActiveSet(null)
+      if (shownSet?.id === id) { setShownSet(null); setView('review') }
+      refreshActiveSets()
+    } catch (e) { setError((e as Error).message) }
+  }, [refreshActiveSets, activeSet?.id, shownSet?.id])
+
+  const abandonSet = dropSet
+
+  /** Write the set's progress back. Called after every answer. */
+  const persistSet = useCallback(async (
+    next: SetAnswer[], finished: boolean, spent: number,
+  ) => {
+    const live = activeSetRef.current
+    if (!live) return null
+    try {
+      const saved = await api.saveSet({
+        id: live.id,
+        created_at: live.created_at,
+        finished_at: finished ? Math.floor(Date.now() / 1000) : null,
+        seconds: spent,
+        filters: live.filters,
+        items: next,
+      })
+      // Only the finish path writes back. Adopting the server's row after a
+      // progress write would undo any answer given while the request was in
+      // flight, which is exactly what the HTTP backend's round trip makes easy.
+      // The local ref is authoritative for the length of the session.
+      if (finished) { activeSetRef.current = null; setActiveSet(null) }
+      return saved
+    } catch (e) { setError((e as Error).message); return null }
+  }, [])
+
+  /** End the set and show the score. */
+  const finishSet = useCallback(async () => {
+    const live = activeSetRef.current
+    if (!live) return
+    const spent = live.seconds ?? 0
+    const saved = await persistSet(live.items ?? [], true, spent)
+    setShowSetReview(false)
+    setShownSet(saved)
+    setRemaining(null)
+    setView('results')
+    refreshActiveSets()
+    api.taxonomy().then((d) => { setTaxonomy(d.taxonomy); setStats(d.stats) }).catch(() => {})
+  }, [persistSet, refreshActiveSets])
+
+  /**
+   * The set clock.
+   *
+   * Priced per question from the real test's own pace and started when the set
+   * is opened, not when it was created, so closing the tab does not run it
+   * down. Running out ends the set exactly as finishing it does, which is what
+   * the real thing does at the end of a module.
+   */
+  useEffect(() => {
+    if (!practising || !activeSet?.filters?.speed) { setRemaining(null); return }
+    const sections = items.map((i) => i.section)
+    const total = setSeconds(sections, activeSet.filters.speed)
+    const left = Math.max(0, total - (activeSet.seconds ?? 0))
+    setRemaining(left)
+    if (!left) return
+    const started = Date.now()
+    const tick = setInterval(() => {
+      const now = Math.max(0, left - Math.floor((Date.now() - started) / 1000))
+      setRemaining(now)
+      if (now <= 0) clearInterval(tick)
+    }, 1000)
+    return () => clearInterval(tick)
+    // activeSet.id rather than activeSet: re-running this on every answer would
+    // restart the clock from the top each time.
+  }, [practising, activeSet?.id, activeSet?.filters?.speed, items])
+
+  useEffect(() => {
+    if (remaining === 0 && activeSet) void finishSet()
+  }, [remaining, activeSet, finishSet])
+
+  /** Open a finished set's score screen from the review page. */
+  const showSet = useCallback(async (id: string) => {
+    try {
+      setShownSet(await api.getSet(id))
+      setView('results')
+    } catch (e) { setError((e as Error).message) }
+  }, [])
+
+  /**
+   * Run the same questions again as a NEW set, rather than resetting the old
+   * one. The score you already have is history and has to stay put.
+   */
+  const redoSet = useCallback(async (old: PracticeSet) => {
+    try {
+      const full = old.items ? old : await api.getSet(old.id)
+      const created = await api.saveSet({
+        id: crypto.randomUUID(),
+        created_at: Math.floor(Date.now() / 1000),
+        finished_at: null,
+        seconds: 0,
+        filters: full.filters,
+        items: (full.items ?? []).map((i) => ({
+          question_id: i.question_id, response: null, correct: 0 as const, seconds: 0,
+        })),
+      })
+      setShownSet(null)
+      await openSet(created.id)
+    } catch (e) { setError((e as Error).message) }
+  }, [])
+
   const go = useCallback((next: number) => {
     setIndex(Math.min(items.length - 1, Math.max(0, next)))
   }, [items.length])
@@ -161,6 +365,23 @@ export default function App() {
           : item
       )))
       api.stats().then(setStats).catch(() => {})
+
+      // A set keeps its own copy of what happened, so its score is fixed on the
+      // day rather than re-derived from attempts you might repeat later.
+      const live = activeSetRef.current
+      if (live) {
+        const next = (live.items ?? []).map((i) => (
+          i.question_id === current.id
+            ? { ...i, response, correct: (graded.correct ? 1 : 0) as 0 | 1, seconds }
+            : i
+        ))
+        const spent = (live.seconds ?? 0) + seconds
+        // Update the ref first so an answer landing before the write returns
+        // still builds on this one.
+        activeSetRef.current = { ...live, items: next, seconds: spent }
+        setActiveSet(activeSetRef.current)
+        void persistSet(next, false, spent)
+      }
     } catch (e) { setError((e as Error).message) }
   }
 
@@ -206,19 +427,41 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [index, go, practising])
 
+  /**
+   * How THIS set is going, cell by cell.
+   *
+   * Not the same as each question's own history: redo a set and every question
+   * in it has been answered before, so the navigator would show a full grid of
+   * greens before you had answered anything. A set is one pass, so there is no
+   * retry state within it.
+   */
+  const setStates = useMemo<CellState[] | undefined>(() => {
+    if (!activeSet?.items) return undefined
+    const byId = new Map(activeSet.items.map((i) => [i.question_id, i]))
+    return items.map((item) => {
+      const row = byId.get(item.id)
+      if (!row || row.response === null || row.response === '') return 'unanswered'
+      return row.correct ? 'first' : 'wrong'
+    })
+  }, [activeSet?.items, items])
+
   const section = question?.section ?? filters.section ?? 'RW'
   // Reads like Bluebook's "Section 1, Module 2: Reading and Writing": the
   // section, then whatever the filters narrowed it to.
   const setTitle = useMemo(() => {
-    const lead = filters.section ? SECTION_LABEL[filters.section] : 'All questions'
-    if (filters.skills?.length === 1 && question?.skill_name) {
+    // A set describes itself from the filters it was BUILT with. Reading the
+    // live filter state instead made a resumed set announce whatever the home
+    // page happened to be showing.
+    const f = activeSet?.filters ?? filters
+    const lead = f.section ? SECTION_LABEL[f.section] : 'All questions'
+    if (f.skills?.length === 1 && question?.skill_name) {
       return `${lead}: ${question.skill_name}`
     }
-    if (filters.domains?.length === 1 && question?.domain_name) {
+    if (f.domains?.length === 1 && question?.domain_name) {
       return `${lead}: ${question.domain_name}`
     }
     return lead
-  }, [filters, question?.domain_name, question?.skill_name])
+  }, [activeSet?.filters, filters, question?.domain_name, question?.skill_name])
 
   if (!practising) {
     return (
@@ -254,14 +497,28 @@ export default function App() {
         {view === 'home' ? (
           <Home taxonomy={taxonomy} stats={stats} value={filters} count={items.length}
                 loading={listLoading} onChange={setFilters}
-                onStart={() => { setIndex(0); setView('practice') }} />
+                activeSets={activeSets}
+                onResume={openSet}
+                onAbandon={abandonSet}
+                onStart={startSet} />
         ) : view === 'about' ? (
           <div className="page">
             <About />
           </div>
+        ) : view === 'results' ? (
+          <div className="page">
+            {shownSet ? (
+              <SetResults set={shownSet}
+                          onPractice={practiceOne}
+                          onRedo={redoSet}
+                          onDelete={dropSet}
+                          onDone={() => { setShownSet(null); setView('review') }} />
+            ) : null}
+          </div>
         ) : view === 'review' ? (
           <div className="page">
-            <Review onPractice={practiceOne} />
+            <Review onPractice={practiceOne} onOpenSet={showSet}
+                    onDeleteSet={dropSet} />
           </div>
         ) : (
           <div className="page">
@@ -297,8 +554,15 @@ export default function App() {
         </div>
 
         <div className="topbar-center">
-          <div className={showTimer ? 'clock' : 'clock is-hidden'}>
-            {showTimer ? formatClock(seconds) : '···'}
+          {/* A timed set counts the whole set down, the way a module does on the
+              day. Untimed practice keeps the per-question stopwatch it had. */}
+          <div className={
+            (showTimer ? 'clock' : 'clock is-hidden')
+            + (remaining !== null && remaining <= 60 ? ' is-low' : '')
+          }>
+            {!showTimer ? '···'
+              : remaining !== null ? formatCountdown(remaining)
+                : formatClock(seconds)}
           </div>
           <button className="hide-btn" onClick={() => setShowTimer((v) => !v)}>
             {showTimer ? 'Hide' : 'Show'}
@@ -399,6 +663,12 @@ export default function App() {
           <button className="btn primary" onClick={() => go(index - 1)} disabled={index <= 0}>
             Back
           </button>
+          {activeSet && index >= items.length - 1 ? (
+            <button className="btn primary" onClick={() => setShowSetReview(true)}>
+              Review
+              <Icon name="arrow-right" size={17} strokeWidth={2.2} />
+            </button>
+          ) : null}
           <button className="btn primary" onClick={() => go(index + 1)}
                   disabled={index >= items.length - 1}>
             Next
@@ -408,7 +678,21 @@ export default function App() {
 
       {showNavigator ? (
         <Navigator items={items} current={index} title={setTitle}
-                   onGo={go} onClose={() => setShowNavigator(false)} />
+                   onGo={go} onClose={() => setShowNavigator(false)}
+                   states={setStates}
+                   onReviewPage={activeSet ? () => {
+                     setShowNavigator(false); setShowSetReview(true)
+                   } : undefined} />
+      ) : null}
+
+      {showSetReview && activeSet ? (
+        <SetReview items={items} current={index} title={setTitle}
+                   states={setStates}
+                   remaining={remaining}
+                   clock={remaining === null ? null : formatCountdown(remaining)}
+                   onGo={go}
+                   onClose={() => setShowSetReview(false)}
+                   onFinish={finishSet} />
       ) : null}
 
       {showMistake && current ? (

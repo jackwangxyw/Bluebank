@@ -107,6 +107,7 @@ interface ServerResponse {
   marks: { question_id: string; flagged: number; updated_at: number }[]
   annotations: { question_id: string; items: Annotation[]; updated_at: number }[]
   mistakes: { question_id: string; tags: MistakeTag[]; note: string | null; updated_at: number }[]
+  sets?: store.SetRecord[]
 }
 
 async function collect(keys: string[]) {
@@ -114,33 +115,38 @@ async function collect(keys: string[]) {
   const markIds = new Set<string>()
   const annotationIds = new Set<string>()
   const mistakeIds = new Set<string>()
+  const setIds = new Set<string>()
   for (const key of keys) {
     const parsed = store.parseOutboxKey(key)
     if (!parsed) continue
     if (parsed.kind === 'attempt') attemptIds.add(parsed.id)
     else if (parsed.kind === 'mark') markIds.add(parsed.id)
     else if (parsed.kind === 'annotation') annotationIds.add(parsed.id)
+    else if (parsed.kind === 'set') setIds.add(parsed.id)
     else mistakeIds.add(parsed.id)
   }
 
-  const [allAttempts, allMarks, allAnnotations, allMistakes] = await Promise.all([
-    attemptIds.size ? store.loadAttempts() : Promise.resolve([]),
-    markIds.size ? store.loadMarks() : Promise.resolve([]),
-    annotationIds.size ? store.loadAllAnnotations() : Promise.resolve([]),
-    mistakeIds.size ? store.loadAllMistakes() : Promise.resolve([]),
-  ])
+  const [allAttempts, allMarks, allAnnotations, allMistakes, allSets] =
+    await Promise.all([
+      attemptIds.size ? store.loadAttempts() : Promise.resolve([]),
+      markIds.size ? store.loadMarks() : Promise.resolve([]),
+      annotationIds.size ? store.loadAllAnnotations() : Promise.resolve([]),
+      mistakeIds.size ? store.loadAllMistakes() : Promise.resolve([]),
+      setIds.size ? store.loadSets() : Promise.resolve([]),
+    ])
 
   return {
     attempts: allAttempts.filter((a) => attemptIds.has(a.id)),
     marks: allMarks.filter((m) => markIds.has(m.question_id)),
     annotations: allAnnotations.filter((a) => annotationIds.has(a.question_id)),
     mistakes: allMistakes.filter((m) => mistakeIds.has(m.question_id)),
+    sets: allSets.filter((s) => setIds.has(s.id)),
   }
 }
 
 async function apply(data: ServerResponse): Promise<void> {
   const wrote = Boolean(data.attempts?.length || data.marks?.length
-    || data.annotations?.length || data.mistakes?.length)
+    || data.annotations?.length || data.mistakes?.length || data.sets?.length)
   // Attempts: union. Re-putting one we already have is a no-op by construction,
   // which is why the server can safely echo our own writes back.
   if (data.attempts?.length) {
@@ -158,6 +164,9 @@ async function apply(data: ServerResponse): Promise<void> {
       question_id: m.question_id, tags: m.tags, note: m.note, updated_at: m.updated_at,
     })
   }
+  // Sets are a union on the uuid like attempts, not last-write-wins: a finished
+  // set never changes, so re-putting one is a no-op by construction.
+  for (const s of data.sets ?? []) await store.putSet(s)
 
   if (wrote) {
     dataVersion++
@@ -175,15 +184,16 @@ async function apply(data: ServerResponse): Promise<void> {
  * is a no-op.
  */
 export async function seedOutbox(): Promise<void> {
-  const [attempts, marks, annotations, mistakes] = await Promise.all([
+  const [attempts, marks, annotations, mistakes, sets] = await Promise.all([
     store.loadAttempts(), store.loadMarks(), store.loadAllAnnotations(),
-    store.loadAllMistakes(),
+    store.loadAllMistakes(), store.loadSets(),
   ])
   await Promise.all([
     ...attempts.map((a) => store.enqueue('attempt', a.id)),
     ...marks.map((m) => store.enqueue('mark', m.question_id)),
     ...annotations.map((a) => store.enqueue('annotation', a.question_id)),
     ...mistakes.map((m) => store.enqueue('mistake', m.question_id)),
+    ...sets.map((s) => store.enqueue('set', s.id)),
   ])
 }
 

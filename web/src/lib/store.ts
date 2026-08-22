@@ -10,7 +10,9 @@
  * Answering on Pages does not show up on localhost and vice versa. That is a
  * deliberate choice, not a bug -- see HANDOFF section 7c.
  */
-import type { Annotation, MistakeTag, StoredQuestion } from '../types'
+import type {
+  Annotation, Filters, MistakeTag, SetAnswer, StoredQuestion,
+} from '../types'
 import type { Stub } from './normalize'
 
 const DB_NAME = 'bluebank'
@@ -20,8 +22,10 @@ const DB_NAME = 'bluebank'
  * open() below; existing rows are backfilled, never dropped.
  *
  * 3 added the mistakes store. Nothing to backfill: absent means never logged.
+ *
+ * 4 added the sets store: finished practice sets, immutable once written.
  */
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 export const STORE_INDEX = 'index'        // Stub, keyed by _id
 export const STORE_QUESTIONS = 'questions' // StoredQuestion, keyed by id
@@ -31,6 +35,7 @@ export const STORE_ANNOTATIONS = 'annotations' // AnnotationRecord, keyed by que
 export const STORE_META = 'meta'           // arbitrary key/value
 export const STORE_OUTBOX = 'outbox'       // { key }, see the outbox section below
 export const STORE_MISTAKES = 'mistakes'   // MistakeRecord, keyed by question_id
+export const STORE_SETS = 'sets'           // SetRecord, keyed by uuid
 
 export interface Attempt {
   /**
@@ -80,6 +85,10 @@ function open(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_MISTAKES)) {
         db.createObjectStore(STORE_MISTAKES, { keyPath: 'question_id' })
+      }
+      if (!db.objectStoreNames.contains(STORE_SETS)) {
+        const sets = db.createObjectStore(STORE_SETS, { keyPath: 'id' })
+        sets.createIndex('finished_at', 'finished_at', { unique: false })
       }
 
       // v1 -> v2: marks and annotations predate `updated_at`, which the
@@ -230,7 +239,48 @@ export function saveMistake(
 export const isEmptyMistake = (m: MistakeRecord | undefined): boolean =>
   !m || (!m.tags.length && !m.note)
 
-export type OutboxKind = 'attempt' | 'mark' | 'annotation' | 'mistake'
+/**
+ * A practice set: a frozen list of questions and the progress against it.
+ *
+ * `items` holds both, one row per question from the moment the set is created,
+ * so the questions and their order survive a reload and a second device.
+ *
+ * A set changes as you work through it, so unlike attempts it cannot merge by
+ * union. `updated_at` carries it, last write wins, the same rule marks and
+ * annotations use.
+ */
+export interface SetRecord {
+  id: string
+  created_at: number
+  /** Null while the set is still active. */
+  finished_at: number | null
+  updated_at: number
+  seconds: number
+  filters: Filters
+  items: SetAnswer[]
+}
+
+export const loadSets = () => getAll<SetRecord>(STORE_SETS)
+export const loadSet = (id: string) => get<SetRecord>(STORE_SETS, id)
+export const removeSet = (id: string) => remove(STORE_SETS, id)
+
+/** Write a merged row verbatim, keeping the server's timestamp. Sync only. */
+export async function putSet(row: SetRecord): Promise<void> {
+  const mine = await loadSet(row.id)
+  // Guarded locally too. The server decides between devices, but a pull that
+  // arrives while this tab is mid-set must not undo what it just wrote.
+  if (mine && mine.updated_at > row.updated_at) return
+  await put(STORE_SETS, row)
+}
+
+/** Write a local change and stamp it, which is what the merge compares. */
+export async function saveSet(row: Omit<SetRecord, 'updated_at'>): Promise<SetRecord> {
+  const stamped: SetRecord = { ...row, updated_at: Date.now() }
+  await put(STORE_SETS, stamped)
+  return stamped
+}
+
+export type OutboxKind = 'attempt' | 'mark' | 'annotation' | 'mistake' | 'set'
 
 export const outboxKey = (kind: OutboxKind, id: string) => `${kind}:${id}`
 
@@ -245,7 +295,7 @@ export function parseOutboxKey(key: string): { kind: OutboxKind; id: string } | 
   if (cut < 1 || cut === key.length - 1) return null
   const kind = key.slice(0, cut)
   if (kind !== 'attempt' && kind !== 'mark' && kind !== 'annotation'
-      && kind !== 'mistake') return null
+      && kind !== 'mistake' && kind !== 'set') return null
   return { kind, id: key.slice(cut + 1) }
 }
 

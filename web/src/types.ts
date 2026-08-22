@@ -105,6 +105,8 @@ export interface TaxonomyRow {
   skill_name: string
   difficulty: Difficulty
   n: number
+  /** How many of `n` are on an official practice test. */
+  live_n: number
   seen: number
   correct: number
 }
@@ -144,4 +146,52 @@ export interface Filters {
   skills?: string[]
   difficulties?: Difficulty[]
   statuses?: Status[]
+  /** Drop questions that also appear on an official full-length practice test. */
+  excludeLive?: boolean
+  /**
+   * How many questions the set should hold. Undefined is the default and means
+   * the whole filtered pool, which is endless practice with no end screen.
+   * A number turns it into a practice set: a fixed run that you finish, score
+   * and can look back at.
+   */
+  size?: number
+  /**
+   * Pace multiplier for the set clock: 0.75, 1, 1.25 or 1.5 times the time the
+   * real test would give for these questions. 0 or undefined is untimed.
+   *
+   * Not a filter of questions, and both backends ignore it. It rides here
+   * because it is part of what you asked for when you built the set, so it
+   * lands in the set's stored `filters` and the history can say how it was run.
+   */
+  speed?: number
+}
+
+/** One question's outcome inside a finished set. */
+export interface SetAnswer {
+  question_id: string
+  response: string | null
+  correct: 0 | 1
+  seconds: number
+}
+
+/**
+ * A practice set: a frozen, randomly drawn list of questions and the progress
+ * against it. Active until `finished_at` is set.
+ *
+ * `items` is a snapshot, not a live read of the attempts table: answering one
+ * of these questions again next week must not change what this set scored.
+ */
+export interface PracticeSet {
+  id: string
+  created_at: number
+  /** Null while the set is still active. */
+  finished_at: number | null
+  updated_at: number
+  seconds: number
+  filters: Filters
+  total: number
+  answered: number
+  correct: number
+  /** Absent in the list view, present when one set is fetched on its own. */
+  items?: SetAnswer[]
 }

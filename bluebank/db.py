@@ -27,7 +27,11 @@ CREATE TABLE IF NOT EXISTS questions (
   key_recovered  INTEGER NOT NULL DEFAULT 0,
   flags_json     TEXT,               -- normalize-time warnings, null when clean
   update_date    INTEGER NOT NULL,
-  retired        INTEGER NOT NULL DEFAULT 0
+  retired        INTEGER NOT NULL DEFAULT 0,
+  -- Also on an official full-length practice test. College Board's own bank
+  -- calls these "active questions" in its UI and "live items" in its code, and
+  -- offers the same filter so you do not spoil a test you have not sat.
+  live           INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_q_section    ON questions(section, retired);
@@ -82,6 +86,34 @@ CREATE TABLE IF NOT EXISTS marks (
   flagged     INTEGER NOT NULL DEFAULT 0,
   updated_at  INTEGER NOT NULL
 );
+
+-- A practice set: a fixed number of questions, drawn at random from whatever
+-- the filters allowed, worked through to the end and scored.
+--
+-- The question list is frozen at creation. That is the whole point of a set as
+-- opposed to a filter: it is the same questions in the same order when you come
+-- back to it tomorrow or open it on your phone, so `items_json` holds both the
+-- list and the progress against it, one row per question from the moment it is
+-- created.
+--
+-- It is also a snapshot rather than a view over the attempts table. Answer one
+-- of these questions again next week and this set's score has to stay what it
+-- was on the day.
+--
+-- A set changes (created, answered, finished), so unlike attempts it cannot
+-- merge by union. `updated_at` carries it, last write wins, the same rule marks
+-- and annotations use.
+CREATE TABLE IF NOT EXISTS sets (
+  id           TEXT PRIMARY KEY,   -- uuid, minted client side
+  created_at   INTEGER NOT NULL,   -- unix seconds
+  finished_at  INTEGER,            -- null while it is still active
+  updated_at   INTEGER NOT NULL,   -- the merge key
+  seconds      INTEGER NOT NULL DEFAULT 0,   -- time spent so far
+  filters_json TEXT NOT NULL,      -- what was asked for, including the pace
+  items_json   TEXT NOT NULL       -- [{question_id, response, correct, seconds}]
+);
+
+CREATE INDEX IF NOT EXISTS idx_sets_active ON sets(finished_at, created_at);
 """
 
 
@@ -172,6 +204,15 @@ def connect(path=None):
         """)
 
     conn.executescript(SCHEMA)
+
+    # `live` arrived after the first databases were built, and CREATE TABLE IF
+    # NOT EXISTS will not add a column to a table that already exists. Adding it
+    # here rather than requiring a rebuild, since the questions cost five
+    # minutes to refetch. It stays 0 until the next `normalize` fills it in.
+    if not any(c["name"] == "live"
+               for c in conn.execute("PRAGMA table_info(questions)")):
+        conn.execute("ALTER TABLE questions ADD COLUMN live INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
 
     if migrating:
         rows = conn.execute(

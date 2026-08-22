@@ -1,6 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import { Icon } from './Icon'
-import type { Difficulty, Filters, Section, Stats, TaxonomyRow } from '../types'
+import { SPEEDS, setSeconds, formatClock } from '../lib/pacing'
+import { describeSet } from '../lib/setlabel'
+import type {
+  Difficulty, Filters, PracticeSet, Section, Stats, TaxonomyRow,
+} from '../types'
 
 interface Props {
   taxonomy: TaxonomyRow[]
@@ -10,6 +14,10 @@ interface Props {
   loading: boolean
   onChange: (next: Filters) => void
   onStart: () => void
+  /** Sets still being worked through, oldest first. */
+  activeSets: PracticeSet[]
+  onResume: (id: string) => void
+  onAbandon: (id: string) => void
 }
 
 /** 'ALL' is a real choice, distinct from having chosen nothing yet. */
@@ -33,6 +41,9 @@ const STATUSES = [
   { key: 'flagged', label: 'Marked' },
 ] as const
 
+/** Offered set sizes. `null` is the default: the whole pool, no set at all. */
+const SIZES: (number | null)[] = [null, 10, 20, 30, 50]
+
 const SECTION_NAME: Record<Section, string> = {
   RW: 'Reading and Writing',
   MATH: 'Math',
@@ -48,6 +59,7 @@ interface DomainRow {
 
 export function Home({
   taxonomy, stats, value, count, loading, onChange, onStart,
+  activeSets, onResume, onAbandon,
 }: Props) {
   /**
    * Which section card is chosen, held locally because the filter cannot say
@@ -56,6 +68,24 @@ export function Home({
    * different states and the page opens in the second one.
    */
   const [picked, setPicked] = useState<Picked>(null)
+  /** The custom-size box, held as text so it can be empty while you type. */
+  const [custom, setCustom] = useState('')
+
+  /**
+   * How long the clock would be for this set, priced per question from the real
+   * test's own pace. Uses the sections actually available, so an all-Math set
+   * gets Math's 95 seconds a question rather than a blend.
+   */
+  const plannedSeconds = useMemo(() => {
+    if (!value.size || !value.speed) return 0
+    const section: Section = value.section ?? 'RW'
+    const mix: Section[] = value.section
+      ? Array.from({ length: value.size }, () => section)
+      // Everything: assume the draw lands in proportion to the pool, which is
+      // near enough half and half and only decides what the clock says.
+      : Array.from({ length: value.size }, (_, i) => (i % 2 ? 'MATH' : 'RW'))
+    return setSeconds(mix, value.speed)
+  }, [value.size, value.speed, value.section])
 
   const domains = useMemo(() => {
     const map = new Map<string, DomainRow>()
@@ -95,7 +125,7 @@ export function Home({
 
   const totals = useMemo(() => {
     const out = {
-      all: 0, seen: 0,
+      all: 0, seen: 0, live: 0,
       RW: 0, MATH: 0,
       seenRW: 0, seenMATH: 0,
       correct: 0, correctRW: 0, correctMATH: 0,
@@ -103,6 +133,7 @@ export function Home({
     for (const row of taxonomy) {
       out.all += row.n
       out.seen += row.seen
+      out.live += row.live_n ?? 0
       out.correct += row.correct
       out[row.section] += row.n
       out[row.section === 'RW' ? 'seenRW' : 'seenMATH'] += row.seen
@@ -203,6 +234,35 @@ export function Home({
           ) : null}
 
         </header>
+
+        {activeSets.length ? (
+          <section className="pick">
+            <h2 className="label">Sets in progress</h2>
+            <ul className="setlist">
+              {activeSets.map((s) => (
+                <li key={s.id} className="setcard">
+                  <button className="setcard-main" onClick={() => onResume(s.id)}>
+                    <span className="setcard-t">{describeSet(s)}</span>
+                    <span className="setcard-b">
+                      {s.answered} of {s.total} answered
+                    </span>
+                    <span className="meter">
+                      <span className="meter-fill"
+                            style={{ width: `${Math.max((s.answered / Math.max(s.total, 1)) * 100, 0.4)}%` }} />
+                    </span>
+                  </button>
+                  <span className="setcard-side">
+                    <span className="setcard-go">Resume</span>
+                    <button className="setcard-drop" onClick={() => onAbandon(s.id)}
+                            title="Discard this set">
+                      <Icon name="trash" size={15} strokeWidth={2} />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <section className="pick">
           <h2 className="label">Section</h2>
@@ -325,6 +385,67 @@ export function Home({
                 ))}
               </div>
             </div>
+
+            {totals.live ? (
+              <div className="row">
+                <h2 className="label">Practice tests</h2>
+                <div className="chips">
+                  <button className={value.excludeLive ? 'chip on' : 'chip'}
+                          aria-pressed={value.excludeLive ?? false}
+                          onClick={() => set({ excludeLive: !value.excludeLive })}>
+                    Leave the practice tests alone
+                  </button>
+                </div>
+                <p className="hint">
+                  {totals.live.toLocaleString()} of these are on the official
+                  full-length practice tests.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="row">
+              <h2 className="label">Set size</h2>
+              <div className="chips">
+                {SIZES.map((n) => (
+                  <button key={String(n)}
+                          className={(value.size ?? null) === n ? 'chip on' : 'chip'}
+                          aria-pressed={(value.size ?? null) === n}
+                          onClick={() => set({ size: n ?? undefined })}>
+                    {n === null ? 'All' : n}
+                  </button>
+                ))}
+                <label className="chip chip-input">
+                  <span>Custom</span>
+                  <input type="number" min={1} max={count || undefined}
+                         value={custom}
+                         placeholder="0"
+                         onChange={(e) => {
+                           setCustom(e.target.value)
+                           const n = Number(e.target.value)
+                           set({ size: Number.isFinite(n) && n > 0 ? Math.min(n, count) : undefined })
+                         }} />
+                </label>
+              </div>
+            </div>
+
+            {value.size ? (
+              <div className="row">
+                <h2 className="label">Pace</h2>
+                <div className="chips">
+                  <button className={!value.speed ? 'chip on' : 'chip'}
+                          aria-pressed={!value.speed}
+                          onClick={() => set({ speed: undefined })}>Untimed</button>
+                  {SPEEDS.map((x) => (
+                    <button key={x}
+                            className={value.speed === x ? 'chip on' : 'chip'}
+                            aria-pressed={value.speed === x}
+                            onClick={() => set({ speed: x })}>
+                      {x}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>
@@ -333,7 +454,13 @@ export function Home({
         <div className="startbar">
           <div className="startbar-inner">
             <span className="count">
-              {loading ? 'Counting…' : (
+              {loading ? 'Counting…' : value.size ? (
+                <>
+                  <strong>{Math.min(value.size, count).toLocaleString()}</strong>
+                  {` of ${count.toLocaleString()}`}
+                  {value.speed ? ` · ${formatClock(plannedSeconds)}` : ''}
+                </>
+              ) : (
                 <>
                   <strong>{count.toLocaleString()}</strong>
                   {` question${count === 1 ? '' : 's'} selected`}
@@ -341,7 +468,7 @@ export function Home({
               )}
             </span>
             <button className="btn primary lg" disabled={!count || loading} onClick={onStart}>
-              Start practicing
+              {value.size ? 'Start set' : 'Start practicing'}
               <Icon name="arrow-right" size={18} strokeWidth={2.2} />
             </button>
           </div>

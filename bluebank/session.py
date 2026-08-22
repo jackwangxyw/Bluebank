@@ -163,7 +163,7 @@ _STATUS_SQL = {
 
 
 def _filter_sql(section=None, domains=None, skills=None, difficulties=None,
-                statuses=None):
+                statuses=None, exclude_live=False):
     """WHERE clause for the practice-set filters.
 
     Values within one filter are OR'd (medium OR hard), and the filters are
@@ -172,6 +172,10 @@ def _filter_sql(section=None, domains=None, skills=None, difficulties=None,
 
     `section` is a single value: it is the mode chosen on the way in, and
     "Everything" is expressed by leaving it out.
+
+    `exclude_live` drops the questions that also appear on an official
+    full-length practice test, so working through the bank does not spoil one
+    you have not sat yet.
     """
     where = ["q.retired = 0"]
     params = []
@@ -179,6 +183,9 @@ def _filter_sql(section=None, domains=None, skills=None, difficulties=None,
     if section:
         where.append("q.section = ?")
         params.append(section)
+
+    if exclude_live:
+        where.append("q.live = 0")
 
     for column, values in (("domain", domains), ("skill", skills),
                            ("difficulty", difficulties)):
@@ -208,13 +215,19 @@ _LAST_ATTEMPT = """
 
 
 def question_set(conn, section=None, domains=None, skills=None,
-                 difficulties=None, statuses=None, order="shuffled"):
+                 difficulties=None, statuses=None, order="shuffled",
+                 exclude_live=False):
     """The ordered working set the navigator paginates over.
 
     Returns one lightweight row per question: enough to draw the navigator grid
     without shipping 3,767 question bodies.
+
+    This is the whole pool, never a slice of it. A practice set takes its
+    questions at random from what comes back here and then freezes them, so
+    there is nothing for a limit to do.
     """
-    where, params = _filter_sql(section, domains, skills, difficulties, statuses)
+    where, params = _filter_sql(section, domains, skills, difficulties, statuses,
+                                exclude_live)
     ordering = {
         # Default. Mixes the sections and difficulties together, but the same
         # pool always comes back in the same order, so question numbers mean
@@ -243,11 +256,104 @@ def question_set(conn, section=None, domains=None, skills=None,
     return [dict(r) for r in rows]
 
 
+# --------------------------------------------------------------------------
+# Practice sets
+# --------------------------------------------------------------------------
+
+_SET_COLS = ("id, created_at, finished_at, updated_at, seconds, filters_json,"
+             " items_json")
+
+
+def _set_row(row):
+    items = json.loads(row["items_json"])
+    answered = [i for i in items if i.get("response") not in (None, "")]
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "finished_at": row["finished_at"],
+        "updated_at": row["updated_at"],
+        "seconds": row["seconds"],
+        "filters": json.loads(row["filters_json"]),
+        "items": items,
+        "total": len(items),
+        "answered": len(answered),
+        "correct": sum(1 for i in items if i.get("correct")),
+    }
+
+
+def draw_set(conn, question_ids):
+    """The blank progress rows for a new set, one per question, in order."""
+    return [{"question_id": qid, "response": None, "correct": 0, "seconds": 0}
+            for qid in question_ids]
+
+
+def put_set(conn, set_id, items, filters=None, seconds=0, created_at=None,
+            finished_at=None, updated_at=None):
+    """Create or update a set, last write wins on `updated_at`.
+
+    The client owns the whole row and sends it back whole, so this is a plain
+    upsert guarded on the timestamp. The guard is what stops a slow request from
+    a stale tab overwriting a finish that already landed.
+    """
+    now = int(time.time())
+    updated = int(updated_at if updated_at is not None else now)
+    conn.execute(
+        f"INSERT INTO sets ({_SET_COLS}) VALUES (?,?,?,?,?,?,?)"
+        " ON CONFLICT(id) DO UPDATE SET"
+        "   finished_at=excluded.finished_at, updated_at=excluded.updated_at,"
+        "   seconds=excluded.seconds, filters_json=excluded.filters_json,"
+        "   items_json=excluded.items_json"
+        " WHERE excluded.updated_at >= sets.updated_at",
+        (set_id, int(created_at if created_at is not None else now), finished_at,
+         updated, seconds or 0, json.dumps(filters or {}), json.dumps(items)))
+    conn.commit()
+    return get_set(conn, set_id)
+
+
+def list_sets(conn, limit=50, active=None):
+    """Sets without their per-question detail.
+
+    `active=True` is the unfinished ones, oldest first because they are a queue
+    of work waiting on the home page. `active=False` is the finished ones,
+    newest first because that is history.
+    """
+    where, order = "", "created_at DESC"
+    if active is True:
+        where, order = "WHERE finished_at IS NULL", "created_at ASC"
+    elif active is False:
+        where, order = "WHERE finished_at IS NOT NULL", "finished_at DESC"
+    rows = conn.execute(
+        f"SELECT {_SET_COLS} FROM sets {where} ORDER BY {order}, id LIMIT ?",
+        (limit,)).fetchall()
+    out = []
+    for row in rows:
+        summary = _set_row(row)
+        summary.pop("items")
+        out.append(summary)
+    return out
+
+
+def get_set(conn, set_id):
+    row = conn.execute(
+        f"SELECT {_SET_COLS} FROM sets WHERE id = ?", (set_id,)).fetchone()
+    return _set_row(row) if row else None
+
+
+def delete_set(conn, set_id):
+    conn.execute("DELETE FROM sets WHERE id = ?", (set_id,))
+    conn.commit()
+
+
 def taxonomy(conn):
-    """Sections, domains, and skills with live counts, for the filter panel."""
+    """Sections, domains, and skills with counts, for the filter panel.
+
+    `live_n` rides along so the panel can show what the counts become with the
+    practice-test filter on, without a second query per toggle.
+    """
     rows = conn.execute("""
         SELECT q.section, q.domain, q.domain_name, q.skill, q.skill_name,
                q.difficulty, COUNT(*) n,
+               SUM(q.live) live_n,
                SUM(CASE WHEN last.question_id IS NOT NULL THEN 1 ELSE 0 END) seen,
                SUM(COALESCE(last.correct, 0)) correct
         FROM questions q {join}

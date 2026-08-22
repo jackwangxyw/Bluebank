@@ -14,6 +14,8 @@ LIST_URL = ("https://qbank-api.collegeboard.org/msreportingquestionbank-prod"
 DETAIL_URL = ("https://qbank-api.collegeboard.org/msreportingquestionbank-prod"
               "/questionbank/digital/get-question")
 IBN_URL = "https://saic.collegeboard.org/disclosed/{ibn}.json"
+LOOKUP_URL = ("https://qbank-api.collegeboard.org/msreportingquestionbank-prod"
+              "/questionbank/lookup")
 
 SAT_EVENT_ID = 99
 RW, MATH = 1, 2
@@ -65,6 +67,17 @@ def fetch_index(test):
         "test": test,
         "domain": DOMAINS[test],
     })
+
+
+def fetch_lookup():
+    """The bank's own lookup blob. One GET, no body, no auth.
+
+    The part worth having is `readingLiveItems` and `mathLiveItems`: the
+    external_ids that also appear on an official full-length practice test.
+    College Board's own bank calls this "Exclude Active Questions" and filters
+    on exactly these two lists, matching on external_id and never on ibn.
+    """
+    return _request(urllib.request.Request(LOOKUP_URL))
 
 
 def fetch_external(external_id):

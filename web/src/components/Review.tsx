@@ -20,8 +20,11 @@ import * as api from '../api'
 import { Explanation } from './Explanation'
 import { RichText } from './RichText'
 import { Icon } from './Icon'
+import { describeSet } from '../lib/setlabel'
+import { formatClock } from '../lib/pacing'
 import type {
-  Annotation, Attempt, GradeResult, Mistake, MistakeTag, Question, Section, SetItem,
+  Annotation, Attempt, GradeResult, Mistake, MistakeTag, PracticeSet, Question,
+  Section, SetItem,
 } from '../types'
 
 const TAG_LABEL: Record<MistakeTag, string> = {
@@ -85,9 +88,13 @@ const FILTERS: [Filter, string][] = [
 
 interface Props {
   onPractice: (id: string) => void
+  /** Open a finished set's score screen. */
+  onOpenSet: (id: string) => void
+  onDeleteSet: (id: string) => void
 }
 
-export function Review({ onPractice }: Props) {
+export function Review({ onPractice, onOpenSet, onDeleteSet }: Props) {
+  const [sets, setSets] = useState<PracticeSet[] | null>(null)
   const [items, setItems] = useState<SetItem[] | null>(null)
   /** Which questions have a mistake log. Filled in as rows are opened. */
   const [logged, setLogged] = useState<Set<string>>(new Set())
@@ -120,7 +127,49 @@ export function Review({ onPractice }: Props) {
     api.loggedIds()
       .then((d) => setLogged(new Set(d.question_ids)))
       .catch(() => { /* the filter degrades to empty, the page still works */ })
+    // Finished sets. A failure leaves the section out rather than the page.
+    api.listSets(false)
+      .then(setSets)
+      .catch(() => setSets([]))
   }, [])
+
+  /** Finished sets, newest first. Rendered above the per-question history. */
+  const setHistory = sets?.length ? (
+    <section className="review-section">
+      <h2 className="review-sectionhead">Practice sets</h2>
+      <ul className="setlist">
+        {sets.map((s) => {
+          const pct = s.total ? Math.round((s.correct / s.total) * 100) : 0
+          return (
+            <li key={s.id} className="setcard">
+              <button className="setcard-main" onClick={() => onOpenSet(s.id)}>
+                <span className="setcard-t">{describeSet(s)}</span>
+                <span className="setcard-b">
+                  {new Date((s.finished_at ?? s.created_at) * 1000)
+                    .toLocaleDateString(undefined,
+                      { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {s.seconds ? ` · ${formatClock(s.seconds)}` : ''}
+                </span>
+              </button>
+              <span className="setcard-side">
+                <span className={`setcard-score ${pct >= 90 ? 'good' : pct >= 70 ? 'mid' : 'poor'}`}>
+                  {s.correct}<span className="dim">/{s.total}</span>
+                </span>
+                <button className="setcard-drop"
+                        title="Delete this set"
+                        onClick={() => {
+                          setSets((prev) => prev?.filter((x) => x.id !== s.id) ?? prev)
+                          onDeleteSet(s.id)
+                        }}>
+                  <Icon name="trash" size={15} strokeWidth={2} />
+                </button>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  ) : null
 
   if (error) return <div className="review"><p className="review-empty">{error}</p></div>
   if (!items) return <div className="review"><p className="review-empty">Loading…</p></div>
@@ -129,6 +178,7 @@ export function Review({ onPractice }: Props) {
     return (
       <div className="review">
         <h1 className="about-h1">Review</h1>
+        {setHistory}
         <p className="review-empty">
           Nothing here yet. Answer some questions and they'll show up, with how
           long each one took.
@@ -175,6 +225,8 @@ export function Review({ onPractice }: Props) {
         {items.length.toLocaleString()} answered · {correct.toLocaleString()} correct ·{' '}
         {duration(Math.round(total))} spent
       </p>
+
+      {setHistory}
 
       <div className="chips review-filter">
         {FILTERS.map(([key, label]) => (

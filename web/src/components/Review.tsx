@@ -17,19 +17,11 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../api'
-import { Explanation } from './Explanation'
-import { RichText } from './RichText'
+import { QuestionDetail } from './QuestionDetail'
 import { Icon } from './Icon'
 import { describeSet } from '../lib/setlabel'
-import { formatClock } from '../lib/pacing'
-import type {
-  Annotation, Attempt, GradeResult, Mistake, MistakeTag, PracticeSet, Question,
-  Section, SetItem,
-} from '../types'
-
-const TAG_LABEL: Record<MistakeTag, string> = {
-  process: 'Process', silly: 'Silly', knowledge: 'Knowledge', other: 'Other',
-}
+import { duration, formatClock } from '../lib/pacing'
+import type { PracticeSet, Section, SetItem } from '../types'
 
 const SECTION_LABEL: Record<Section, string> = {
   RW: 'Reading and Writing', MATH: 'Math',
@@ -54,13 +46,6 @@ function verdict(item: SetItem): { cls: string; label: string } {
   return { cls: 'right', label: 'Correct' }
 }
 
-/** "1m 20s", because 80s is harder to read at a glance. */
-function duration(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined) return '—'
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-}
-
 /** Day headings, so a long history reads as sittings rather than one wall. */
 function dayKey(ts: number | null): string {
   if (!ts) return 'Earlier'
@@ -74,11 +59,6 @@ function dayKey(ts: number | null): string {
   if (days < 30) return 'This month'
   return then.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
-
-const clock = (ts: number | null) => (ts
-  ? new Date(ts * 1000).toLocaleString(undefined,
-    { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-  : '')
 
 type Filter = 'all' | 'incorrect' | 'logged'
 
@@ -277,8 +257,11 @@ export function Review({ onPractice, onOpenSet, onDeleteSet }: Props) {
                             size={16} strokeWidth={2.2} />
                     </button>
                     {open === item.id ? (
-                      <Detail id={item.id} item={item} onPractice={onPractice}
-                              onLogged={markLogged} />
+                      <QuestionDetail id={item.id}
+                                      response={item.last_response}
+                                      seconds={item.last_seconds ?? 0}
+                                      onPractice={onPractice}
+                                      onLogged={markLogged} />
                     ) : null}
                   </li>
                 ))}
@@ -287,129 +270,6 @@ export function Review({ onPractice, onOpenSet, onDeleteSet }: Props) {
           ))}
         </section>
       ))}
-    </div>
-  )
-}
-
-function Detail({ id, item, onPractice, onLogged }: {
-  id: string
-  item: SetItem
-  onPractice: (id: string) => void
-  onLogged: (id: string, has: boolean) => void
-}) {
-  const [data, setData] = useState<{
-    question: Question; annotations: Annotation[]; mistake: Mistake | null
-  } | null>(null)
-  /**
-   * The rationale is deliberately NOT on the question payload, so it has to be
-   * asked for separately. `explain` re-grades the stored response and records
-   * nothing, which is what keeps expanding a row from logging a fresh attempt.
-   */
-  const [result, setResult] = useState<GradeResult | null>(null)
-  const [attempts, setAttempts] = useState<Attempt[]>([])
-  const [showPassage, setShowPassage] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let stale = false
-    Promise.all([
-      api.question(id),
-      api.explain(id, item.last_response),
-      api.attemptsFor(id),
-    ])
-      .then(([q, r, a]) => {
-        if (stale) return
-        setData(q); setResult(r); setAttempts(a.attempts)
-        onLogged(id, Boolean(q.mistake))
-      })
-      .catch((e: Error) => !stale && setError(e.message))
-    return () => { stale = true }
-  }, [id, item.last_response, onLogged])
-
-  if (error) return <p className="review-empty">{error}</p>
-  if (!data || !result) return <p className="review-empty">Loading…</p>
-
-  const hasLog = Boolean(data.mistake
-    && (data.mistake.tags.length || data.mistake.note))
-
-  return (
-    <div className="review-detail">
-      {/* The passage is the longest thing here and you usually remember it, so
-          it starts folded and the question stays at the top of the panel. */}
-      {data.question.stimulus_html ? (
-        <>
-          <button className="btn small review-toggle"
-                  onClick={() => setShowPassage((v) => !v)}>
-            {showPassage ? 'Hide passage' : 'Show passage'}
-            <Icon name={showPassage ? 'chevron-up' : 'chevron-down'}
-                  size={14} strokeWidth={2.2} />
-          </button>
-          {showPassage ? (
-            <div className="review-passage">
-              <RichText html={data.question.stimulus_html} field="stimulus" annotations={[]} />
-            </div>
-          ) : null}
-        </>
-      ) : null}
-
-      <div className="review-stem">
-        <RichText html={data.question.stem_html} field="stem" annotations={[]} />
-      </div>
-
-      <h4 className="review-h">Your attempts</h4>
-      <div className="review-tablewrap">
-        <table className="review-table">
-          <thead>
-            <tr><th>#</th><th>When</th><th>Answer</th><th>Result</th><th>Time</th></tr>
-          </thead>
-          <tbody>
-            {attempts.map((a, i) => (
-              <tr key={a.id ?? i}>
-                <td>{i + 1}</td>
-                <td>{clock(a.answered_at)}</td>
-                <td className="review-ans">{a.response || 'blank'}</td>
-                <td className={a.correct ? 'ok' : 'no'}>{a.correct ? 'Correct' : 'Incorrect'}</td>
-                <td>{duration(a.seconds)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Nothing logged means nothing to show. An empty section was just noise
-          on every question you never wrote anything about. */}
-      {hasLog ? (
-        <>
-          <h4 className="review-h">Mistake log</h4>
-          <div className="review-mistake">
-            {data.mistake!.tags.length ? (
-              <div className="chips">
-                {data.mistake!.tags.map((t) => (
-                  <span key={t} className="chip on static">{TAG_LABEL[t]}</span>
-                ))}
-              </div>
-            ) : null}
-            {data.mistake!.note ? (
-              <p className="review-note">{data.mistake!.note}</p>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-
-      {data.annotations.length ? (
-        <p className="review-anns">
-          {data.annotations.length} highlight{data.annotations.length === 1 ? '' : 's'} saved
-          on this question.
-        </p>
-      ) : null}
-
-      <Explanation result={result} question={data.question}
-                   seconds={item.last_seconds ?? 0} startOpen />
-
-      <button className="btn small review-again" onClick={() => onPractice(id)}>
-        Practice this question again
-        <Icon name="arrow-right" size={14} strokeWidth={2.2} />
-      </button>
     </div>
   )
 }

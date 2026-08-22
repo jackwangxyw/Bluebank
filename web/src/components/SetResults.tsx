@@ -8,12 +8,13 @@
 import { useEffect, useState } from 'react'
 import * as api from '../api'
 import { Icon } from './Icon'
+import { QuestionDetail } from './QuestionDetail'
 import { formatClock } from '../lib/pacing'
 import type { PracticeSet, SetItem } from '../types'
 
 interface Props {
   set: PracticeSet
-  /** Open one of its questions on its own. */
+  /** Put one of its questions back on screen to answer again. */
   onPractice: (id: string) => void
   onRedo: (set: PracticeSet) => void
   onDelete: (id: string) => void
@@ -29,6 +30,13 @@ function verdict(pct: number): string {
 export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [meta, setMeta] = useState<Map<string, SetItem>>(new Map())
+  /**
+   * Which row is expanded. Opening one reads the question back rather than
+   * reopening it to answer: the set is already scored, so the useful thing here
+   * is the explanation and what you did, not another go at it. Practising it
+   * again is a button inside the panel.
+   */
+  const [open, setOpen] = useState<string | null>(null)
 
   // The snapshot stores ids and outcomes, not skill names. Those come from the
   // bank so the list can say what each question was about.
@@ -94,10 +102,13 @@ export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props)
         {items.map((item, i) => {
           const q = meta.get(item.question_id)
           const state = item.response === null ? 'blank' : item.correct ? 'ok' : 'no'
+          const isOpen = open === item.question_id
           return (
-            <li key={item.question_id} className="review-item">
+            <li key={item.question_id}
+                className={isOpen ? 'review-item open' : 'review-item'}>
               <button className="review-row"
-                      onClick={() => onPractice(item.question_id)}>
+                      aria-expanded={isOpen}
+                      onClick={() => setOpen(isOpen ? null : item.question_id)}>
                 <span className="q-num">{i + 1}</span>
                 <span className={`review-badge ${state === 'ok' ? 'ok' : 'no'}`}>
                   {state === 'blank' ? 'Blank' : state === 'ok' ? 'Correct' : 'Wrong'}
@@ -115,7 +126,15 @@ export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props)
                     {item.seconds ? formatClock(item.seconds) : '—'}
                   </span>
                 </span>
+                <Icon name={isOpen ? 'chevron-up' : 'chevron-down'}
+                      size={16} strokeWidth={2.2} />
               </button>
+              {isOpen ? (
+                <QuestionDetail id={item.question_id}
+                                response={item.response}
+                                seconds={item.seconds}
+                                onPractice={onPractice} />
+              ) : null}
             </li>
           )
         })}

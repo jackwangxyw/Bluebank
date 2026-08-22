@@ -1386,7 +1386,7 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 /* ---- review ---- */
 .review { max-width: 860px; margin: 0 auto; padding: 40px 32px 80px; }
 .review-sub { margin: 0 0 18px; font-size: 14px; color: var(--muted); }
-.review-filter { margin-bottom: 10px; }
+.review-filter { margin: 22px 0 10px; }
 .review-empty { margin: 20px 0; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
 
 /* Section, then day. Reading and Maths are studied separately, so the top

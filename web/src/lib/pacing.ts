@@ -46,6 +46,19 @@ export function setSeconds(sections: Section[], speed: number): number {
   return Math.round((raw * speed) / 60) * 60
 }
 
+/**
+ * "1m 20s", because 80s is harder to read at a glance.
+ *
+ * The spelled-out form the review screens use. `formatClock` is the running
+ * clock, which has to stay a fixed shape while it ticks; this one is read once,
+ * sitting still, so it can spend the extra characters.
+ */
+export function duration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return '—'
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 /** `m:ss`, or `h:mm:ss` once a set is long enough to need it. */
 export function formatClock(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds))

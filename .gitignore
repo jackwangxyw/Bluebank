@@ -23,3 +23,6 @@ logo-test/
 
 # Blurbs for Discord and the like. Local only.
 Marketing.md
+
+# Social graphics and the script that builds them. Local only.
+social/

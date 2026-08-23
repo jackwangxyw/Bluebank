@@ -1595,3 +1595,10 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   .setdone-score { font-size: 42px; }
   .setcard-side { padding-right: 10px; }
 }
+
+/* DIAGNOSTIC, paired with the `diag` state in Desmos.tsx. Remove together. */
+.desmos-diag {
+  flex: none; padding: 6px 10px; background: #fdecef; color: #a60d26;
+  font-size: 11.5px; line-height: 1.35; word-break: break-word;
+  border-top: 1px solid rgba(166, 13, 38, .25);
+}

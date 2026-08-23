@@ -10,9 +10,12 @@ import { Icon } from './Icon'
 const API_KEY = '8359beecc3e74feda51c82d4934c80a1'
 const SRC = `https://www.desmos.com/api/v1.11/calculator.js?apiKey=${API_KEY}`
 
+interface Helper { numericValue: number; observe(k: string, cb: () => void): void }
+
 interface Calculator {
   destroy(): void
   resize?(): void
+  HelperExpression?(opts: { latex: string }): Helper
 }
 
 declare global {
@@ -92,6 +95,17 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
   const panel = useRef<HTMLDivElement>(null)
   const calc = useRef<Calculator | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * DIAGNOSTIC, remove once the "opens but does nothing" report is closed.
+   *
+   * Reported from a Windows laptop: the calculator draws, the window drags,
+   * and Desmos itself is inert. Graph will not pan, expressions will not type,
+   * and Desmos's own zoom buttons do nothing. Reproduced none of it here
+   * against WebGL loss, blocked workers, touch input, slow CPU, small windows
+   * or a truncated bundle, so this asks the failing machine instead of
+   * guessing. Renders only when something is actually wrong.
+   */
+  const [diag, setDiag] = useState<string | null>(null)
   const [rect, setRect] = useState<Rect>({ ...remembered })
   // Expanded snaps to the left at full height, Bluebook's split-screen mode.
   const [expanded, setExpanded] = useState(false)
@@ -111,6 +125,21 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
           throw new Error('Desmos loaded but did not start (blocked by an extension or network filter?)')
         }
         calc.current = window.Desmos.GraphingCalculator(host.current, CONFIG)
+
+        // A HelperExpression round-trips through Desmos's own compute path, so
+        // a value coming back proves the engine is running and narrows the
+        // fault to rendering or input. Nothing coming back means the engine
+        // never started, which is invisible from the outside: the calculator
+        // still paints its initial frame either way.
+        const helper = calc.current.HelperExpression?.({ latex: '1+1' })
+        if (!helper) return
+        let answered = false
+        helper.observe('numericValue', () => {
+          if (!Number.isNaN(helper.numericValue)) answered = true
+        })
+        window.setTimeout(() => {
+          if (!cancelled && !answered) setDiag('math engine never responded')
+        }, 6000)
       })
       .catch((e: Error) => !cancelled && setError(e.message))
     return () => {
@@ -234,6 +263,22 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
     window.addEventListener('pointerup', up)
   }
 
+  // Same diagnostic. An uncaught error while the calculator is open is the
+  // most likely reason it would sit there drawn but dead, and it is the one
+  // thing a screenshot of the calculator cannot otherwise show.
+  useEffect(() => {
+    const onError = (e: ErrorEvent) =>
+      setDiag((d) => d ?? `${e.message} (${(e.filename || '?').split('/').pop()}:${e.lineno})`)
+    const onReject = (e: PromiseRejectionEvent) =>
+      setDiag((d) => d ?? `unhandled: ${String(e.reason).slice(0, 120)}`)
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onReject)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onReject)
+    }
+  }, [])
+
   const style = expanded
     ? { width: `${splitPct}%` }
     : { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
@@ -263,6 +308,8 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
       </div>
 
       {error ? <p className="desmos-error">{error}</p> : <div ref={host} className="desmos-host" />}
+
+      {diag ? <p className="desmos-diag" title="Diagnostic">{diag}</p> : null}
 
       {expanded ? (
         <span className="desmos-split-grip" onPointerDown={onSplitDown}

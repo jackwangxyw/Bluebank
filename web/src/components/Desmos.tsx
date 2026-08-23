@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from './Icon'
 
 // Our own key from desmos.com/api, replacing the demo key Desmos publishes in
@@ -102,7 +102,14 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
     let cancelled = false
     loadDesmos()
       .then(() => {
-        if (cancelled || !host.current || !window.Desmos) return
+        if (cancelled || !host.current) return
+        // onload fired but nothing registered itself. That happens when the
+        // request was answered by something other than Desmos: a blocker
+        // serving an empty stub, a captive portal, a filtering proxy. Silently
+        // returning here left an empty window with no clue what went wrong.
+        if (!window.Desmos) {
+          throw new Error('Desmos loaded but did not start (blocked by an extension or network filter?)')
+        }
         calc.current = window.Desmos.GraphingCalculator(host.current, CONFIG)
       })
       .catch((e: Error) => !cancelled && setError(e.message))
@@ -111,6 +118,42 @@ export function Desmos({ onClose, onExpandedChange }: Props) {
       calc.current?.destroy()
       calc.current = null
     }
+  }, [])
+
+  /**
+   * Fit the window to the pane before it is ever shown, and again whenever the
+   * pane changes size.
+   *
+   * The remembered 420x580 is a default, not a promise. On a short window it
+   * does not fit, and every way out of that is itself blocked: dragging clamps
+   * y to Math.max(0, limit.h - s.h), which is 0 once the panel is taller than
+   * the pane, so the window pins to the top and will not move at all; and the
+   * resize grip lives at its bottom right, which by then is below the fold. A
+   * 1366x768 laptop leaves this pane 488px tall against a 580px panel, so the
+   * calculator opens stuck, with its lower half cut off. Under display scaling
+   * the pane is shorter still and the expression list never appears on screen.
+   */
+  useLayoutEffect(() => {
+    const parent = panel.current?.parentElement
+    if (!parent) return
+    // Returns the same object when nothing moved, so observing the parent
+    // cannot feed itself a render loop.
+    const fit = () => setRect((r) => {
+      const { clientWidth: w, clientHeight: h } = parent
+      if (!w || !h) return r
+      // Fit to the room left of the right edge and below the bottom, so the
+      // window keeps its offset from the corner rather than snapping flush.
+      const nw = clamp(r.w, MIN_W, Math.max(MIN_W, w - r.x))
+      const nh = clamp(r.h, MIN_H, Math.max(MIN_H, h - r.y))
+      const nx = clamp(r.x, 0, Math.max(0, w - nw))
+      const ny = clamp(r.y, 0, Math.max(0, h - nh))
+      return nw === r.w && nh === r.h && nx === r.x && ny === r.y
+        ? r : { x: nx, y: ny, w: nw, h: nh }
+    })
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(parent)
+    return () => observer.disconnect()
   }, [])
 
   // Desmos sizes its canvas to the container, so it has to be told when the

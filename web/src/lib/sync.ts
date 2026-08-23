@@ -22,6 +22,23 @@ export type SyncStatus = 'off' | 'syncing' | 'synced' | 'pending'
 const CURSOR_KEY = 'sync.cursor'
 const DEBOUNCE_MS = 2000
 
+/**
+ * Backoff after a failed sync.
+ *
+ * Without this, a failure left the badge amber until the user happened to write
+ * something, switch tabs, or reload: run() only rescheduled on the success
+ * path. Nothing was ever lost, because the outbox is not cleared on failure,
+ * but a transient error looked permanent. That matters more now that the Worker
+ * can answer 429 (rate limit) or 413 (account at a storage ceiling).
+ *
+ * Doubling from 5s to a 5min ceiling. A local write still calls schedule() with
+ * the normal debounce and takes over the timer, so anything the user does
+ * retries immediately rather than waiting out the backoff.
+ */
+const RETRY_MIN_MS = 5000
+const RETRY_MAX_MS = 5 * 60 * 1000
+let retryDelay = 0
+
 let status: SyncStatus = 'off'
 let lastError: string | null = null
 let inFlight: Promise<void> | null = null
@@ -54,10 +71,10 @@ export function track(kind: store.OutboxKind, id: string): void {
  * it is so that answering fast does not fire a request every three seconds, and
  * so the network is never on the answer-submission path.
  */
-export function schedule(): void {
+export function schedule(delayMs: number = DEBOUNCE_MS): void {
   if (!auth.configured || !auth.signedIn()) return
   if (timer) clearTimeout(timer)
-  timer = setTimeout(() => { timer = null; void syncNow() }, DEBOUNCE_MS)
+  timer = setTimeout(() => { timer = null; void syncNow() }, delayMs)
 }
 
 export function syncNow(): Promise<void> {
@@ -90,6 +107,7 @@ async function run(): Promise<void> {
     await store.setMeta(CURSOR_KEY, data.cursor)
     await store.clearOutbox(keys)
 
+    retryDelay = 0
     const remaining = await store.loadOutbox()
     emit(remaining.length ? 'pending' : 'synced')
     if (remaining.length) schedule()
@@ -97,7 +115,9 @@ async function run(): Promise<void> {
     // Nothing is cleared on failure, so the outbox still holds everything.
     // Surfaced as amber in the UI rather than swallowed: a sync that silently
     // stops looks identical to one that is switched off.
+    retryDelay = retryDelay ? Math.min(retryDelay * 2, RETRY_MAX_MS) : RETRY_MIN_MS
     emit('pending', (e as Error).message)
+    schedule(retryDelay)
   }
 }
 
@@ -202,6 +222,9 @@ export async function reset(): Promise<void> {
   const keys = await store.loadOutbox()
   await store.clearOutbox(keys)
   await store.setMeta(CURSOR_KEY, 0)
+  // Otherwise signing back in inherits a backoff earned by the previous session.
+  retryDelay = 0
+  if (timer) { clearTimeout(timer); timer = null }
   emit('off')
 }
 

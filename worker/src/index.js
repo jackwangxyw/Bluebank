@@ -68,10 +68,31 @@ const ALLOWED_ORIGINS = [
 
 const SESSION_DAYS = 90
 
-/** Ceiling per account, so one signed-in user cannot fill the database. */
-const MAX_ATTEMPTS_PER_USER = 100000
-/** Ceiling per request, so one call cannot. */
+/** Ceiling per request, so one call cannot fill the database. */
 const MAX_ITEMS_PER_REQUEST = 2000
+
+/**
+ * Ceilings per account, so one signed-in user cannot fill it either. Checked in
+ * handleSync against the row count already stored.
+ *
+ * These are not tuning knobs, they are abuse stops, and every one of them is
+ * far out of reach of a real user. marks, annotations and mistakes are keyed
+ * PRIMARY KEY (sub, question_id), so a person cannot exceed one row per
+ * question in the bank, which is under 4,000: the 20,000 ceiling is five times
+ * a full sweep of every question that exists. Sets are keyed on a uuid and so
+ * are unbounded in principle, but 5,000 of them is years of daily practice.
+ *
+ * `question_id` is never checked against the real bank, which is what makes
+ * these necessary: without them one account can invent question ids and write
+ * rows until D1 is full.
+ */
+const CAPS = {
+  attempts: 100000,
+  marks: 20000,
+  annotations: 20000,
+  mistakes: 20000,
+  sets: 5000,
+}
 
 // ---------------------------------------------------------------- http helpers
 
@@ -109,6 +130,27 @@ function newToken() {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * What actually goes in the `sessions` table.
+ *
+ * The bearer token is handed to the client once and never stored. Only its
+ * SHA-256 is kept, so a dump of D1 yields nothing that can be replayed. There
+ * is no plaintext fallback on lookup: sessions issued before this change stop
+ * matching, so everyone signed in at deploy time is signed out once and signs
+ * in again. That costs nobody any data, because every row in every table is
+ * keyed on `sub` and the client's IndexedDB is never touched by a 401.
+ *
+ * SHA-256 hex is 64 characters, which is exactly the width newToken() already
+ * produced, so `sessions.token` needs no schema change.
+ *
+ * @param {string} token
+ * @returns {Promise<string>}
+ */
+async function hashToken(token) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -150,11 +192,12 @@ async function subForRequest(request, env) {
   const token = header.slice(7)
   if (!token) return null
 
+  const hashed = await hashToken(token)
   const row = await env.DB.prepare(
-    'SELECT sub, expires_at FROM sessions WHERE token = ?').bind(token).first()
+    'SELECT sub, expires_at FROM sessions WHERE token = ?').bind(hashed).first()
   if (!row) return null
   if (row.expires_at * 1000 < Date.now()) {
-    await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run()
+    await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(hashed).run()
     return null
   }
   return row.sub
@@ -312,11 +355,14 @@ async function handleAuth(request, env, origin) {
 
   const now = Math.floor(Date.now() / 1000)
   const token = newToken()
+  // Only the hash is stored. `token` goes back to the caller and is then gone
+  // from this side for good.
+  const hashed = await hashToken(token)
   await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO users (sub, created_at) VALUES (?, ?)').bind(sub, now),
     env.DB.prepare(
       'INSERT INTO sessions (token, sub, created_at, expires_at) VALUES (?,?,?,?)',
-    ).bind(token, sub, now, now + SESSION_DAYS * 86400),
+    ).bind(hashed, sub, now, now + SESSION_DAYS * 86400),
     // Opportunistic cleanup; sessions are the only table that accumulates junk.
     env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now),
   ])
@@ -344,11 +390,39 @@ async function handleSync(request, env, origin) {
   const mistakes = cleanMistakes(body.mistakes)
   const sets = cleanSets(body.sets)
 
-  if (attempts.length) {
-    const count = await env.DB.prepare(
-      'SELECT COUNT(*) AS n FROM attempts WHERE sub = ?').bind(sub).first()
-    if (((count && count.n) || 0) + attempts.length > MAX_ATTEMPTS_PER_USER) {
-      return fail('attempt limit reached for this account', 413, origin)
+  // Refuse only when what is ALREADY stored is at the ceiling, rather than when
+  // stored + incoming would cross it. Two reasons, both about not breaking real
+  // users:
+  //
+  //   - Most incoming rows are not new. seedOutbox() re-pushes a device's whole
+  //     history on sign-in, and the LWW tables re-push a row every time it is
+  //     edited, so stored + incoming wildly overcounts. The old attempts check
+  //     did this and could wedge an account near the ceiling permanently: every
+  //     retry sent the same rows and got the same 413 forever.
+  //   - The cost of the looser rule is that one request can overshoot by at
+  //     most MAX_ITEMS_PER_REQUEST before the next one is refused. That is a
+  //     bounded overshoot on an abuse stop, which does not matter.
+  //
+  // The whole request is refused rather than the offending table being dropped,
+  // because the client clears its outbox on any 2xx: silently discarding one
+  // table's writes would let the client believe they had synced.
+  const checks = []
+  if (attempts.length) checks.push('attempts')
+  if (marks.length) checks.push('marks')
+  if (annotations.length) checks.push('annotations')
+  if (mistakes.length) checks.push('mistakes')
+  if (sets.length) checks.push('sets')
+
+  if (checks.length) {
+    // Table names come from the literal list above, never from the request.
+    const counts = await env.DB.batch(checks.map((table) => env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM ' + table + ' WHERE sub = ?').bind(sub)))
+    for (let i = 0; i < checks.length; i++) {
+      const rows = (counts[i] && counts[i].results) || []
+      const n = (rows[0] && rows[0].n) || 0
+      if (n >= CAPS[checks[i]]) {
+        return fail('storage limit reached for ' + checks[i] + ' on this account', 413, origin)
+      }
     }
   }
 
@@ -492,7 +566,8 @@ async function handleSync(request, env, origin) {
 async function handleSignOut(request, env, origin) {
   const header = request.headers.get('Authorization') || ''
   if (header.startsWith('Bearer ')) {
-    await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(header.slice(7)).run()
+    const hashed = await hashToken(header.slice(7))
+    await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(hashed).run()
   }
   // Always 200: signing out of an already-dead session is not an error, and the
   // client clears its token either way.

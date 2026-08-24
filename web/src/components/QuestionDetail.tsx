@@ -178,12 +178,11 @@ export function QuestionDetail({
           {/* Opens like the passage above it. The label carries whether there
               is already something logged, so a folded section never hides the
               fact that you wrote one. */}
-          <button className="btn small review-toggle"
+          <button className="btn small review-toggle mlog-toggle"
                   aria-expanded={showLog}
                   onClick={() => setShowLog((v) => !v)}>
-            {hasLog
-              ? `Mistake log (${data.mistake!.tags.length || 1})`
-              : 'Log a mistake'}
+            Mistake Logging
+            {hasLog ? ` (${data.mistake!.tags.length || 1})` : ''}
             <Icon name={showLog ? 'chevron-up' : 'chevron-down'}
                   size={14} strokeWidth={2.2} />
           </button>

@@ -102,15 +102,18 @@ export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props)
         {items.map((item, i) => {
           const q = meta.get(item.question_id)
           const state = item.response === null ? 'blank' : item.correct ? 'ok' : 'no'
+          // The stylesheet colours .right / .wrong / .blank. This used to pass
+          // .ok / .no, which match nothing, so every badge rendered grey.
+          const mark = state === 'ok' ? 'right' : state === 'no' ? 'wrong' : 'blank'
           const isOpen = open === item.question_id
           return (
             <li key={item.question_id}
-                className={isOpen ? 'review-item open' : 'review-item'}>
+                className={`review-item is-${mark}${isOpen ? ' open' : ''}`}>
               <button className="review-row"
                       aria-expanded={isOpen}
                       onClick={() => setOpen(isOpen ? null : item.question_id)}>
                 <span className="q-num">{i + 1}</span>
-                <span className={`review-badge ${state === 'ok' ? 'ok' : 'no'}`}>
+                <span className={`review-badge ${mark}`}>
                   {state === 'blank' ? 'Blank' : state === 'ok' ? 'Correct' : 'Wrong'}
                 </span>
                 <span className="review-main">

@@ -108,7 +108,7 @@ export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props)
           const isOpen = open === item.question_id
           return (
             <li key={item.question_id}
-                className={`review-item is-${mark}${isOpen ? ' open' : ''}`}>
+                className={isOpen ? 'review-item open' : 'review-item'}>
               <button className="review-row"
                       aria-expanded={isOpen}
                       onClick={() => setOpen(isOpen ? null : item.question_id)}>

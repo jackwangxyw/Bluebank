@@ -1426,12 +1426,6 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
 .review-badge.wrong { background: var(--red-soft); color: var(--red); }
 .review-badge.blank { background: var(--yellow-soft); color: var(--amber-ink); }
 
-/* Colour the row too, not only its badge, so a finished set scans down the
-   left edge without reading every label. Inset rather than a real border, so
-   adding it does not shift the row's contents. */
-.review-item.is-right { box-shadow: inset 3px 0 0 var(--green); }
-.review-item.is-wrong { box-shadow: inset 3px 0 0 var(--red); }
-.review-item.is-blank { box-shadow: inset 3px 0 0 var(--yellow); }
 
 .review-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .review-skill {

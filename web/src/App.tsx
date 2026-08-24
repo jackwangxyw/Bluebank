@@ -27,6 +27,13 @@ import type {
 
 const SECTION_LABEL = { RW: 'Reading and Writing', MATH: 'Math' } as const
 
+/**
+ * How often a running set banks the time spent on the current question. This
+ * is the most a reload can refund, so it wants to be short; it is also a write
+ * each time, so it does not want to be every second.
+ */
+const SET_FLUSH_SECONDS = 5
+
 const DIRECTIONS = {
   RW: [
     'The questions in this section address a number of important reading and writing skills. Each question includes one or more passages, which may include a table or graph. Read each passage and question carefully, and then choose the best answer to the question based on the passage(s).',
@@ -363,6 +370,57 @@ export default function App() {
   }, [items.length])
 
   /**
+   * Time already banked against the question on screen.
+   *
+   * The per-question stopwatch restarts at zero every time the question
+   * changes, so on its own it reports this visit rather than the total. Adding
+   * the banked figure means coming back to a question continues its clock
+   * instead of replacing it with a smaller number.
+   */
+  const banked = useRef(0)
+  useEffect(() => {
+    const row = activeSetRef.current?.items?.find((i) => i.question_id === current?.id)
+    banked.current = row?.seconds ?? 0
+  }, [current?.id])
+
+  /**
+   * Write the time spent on the question on screen into the set.
+   *
+   * Never lowers a question's figure, so revisiting one cannot hand time back.
+   */
+  const commitElapsed = useCallback((spent: number) => {
+    const live = activeSetRef.current
+    const id = items[index]?.id
+    if (!live || !id) return
+    const total = banked.current + spent
+    const row = (live.items ?? []).find((i) => i.question_id === id)
+    if (!row || total <= (row.seconds || 0)) return
+    const next = (live.items ?? []).map((i) => (
+      i.question_id === id ? { ...i, seconds: total } : i
+    ))
+    const sum = next.reduce((acc, i) => acc + (i.seconds || 0), 0)
+    activeSetRef.current = { ...live, items: next, seconds: sum }
+    setActiveSet(activeSetRef.current)
+    void persistSet(next, false, sum)
+  }, [items, index, persistSet])
+
+  /**
+   * Bank the clock as the set runs, not only when an answer is given.
+   *
+   * The set clock is the sum of the questions' own times, and those were only
+   * written on answering. Time on a question you had not answered yet was
+   * never written anywhere, so leaving and resuming refunded all of it: sit on
+   * question one for ten minutes, reload, and the ten minutes came back.
+   * Flushing on a short interval bounds what a reload can refund to the
+   * interval itself, and costs one small write every few seconds.
+   */
+  useEffect(() => {
+    if (!practising || !activeSet) return
+    if (seconds <= 0 || seconds % SET_FLUSH_SECONDS !== 0) return
+    commitElapsed(seconds)
+  }, [seconds, practising, activeSet, commitElapsed])
+
+  /**
    * Hold an answer inside a set.
    *
    * Nothing is graded and no attempt is recorded until the set is finished, the
@@ -374,7 +432,9 @@ export default function App() {
     const id = items[index]?.id
     if (!id) return
     const next = (live.items ?? []).map((i) => (
-      i.question_id === id ? { ...i, response: value, seconds: spent } : i
+      i.question_id === id
+        ? { ...i, response: value, seconds: Math.max(i.seconds || 0, banked.current + spent) }
+        : i
     ))
     // The set clock is the sum of the questions, not a separate counter, so it
     // survives a reload the same way the answers do.

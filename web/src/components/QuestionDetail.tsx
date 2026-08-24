@@ -15,16 +15,13 @@
 import { useEffect, useState } from 'react'
 import * as api from '../api'
 import { Explanation } from './Explanation'
+import { MistakeFields, TAG_LABEL } from './MistakeFields'
 import { RichText } from './RichText'
 import { Icon } from './Icon'
 import { duration } from '../lib/pacing'
 import type {
   Annotation, Attempt, GradeResult, Mistake, MistakeTag, Question,
 } from '../types'
-
-const TAG_LABEL: Record<MistakeTag, string> = {
-  process: 'Process', silly: 'Silly', knowledge: 'Knowledge', other: 'Other',
-}
 
 const clock = (ts: number | null) => (ts
   ? new Date(ts * 1000).toLocaleString(undefined,
@@ -39,9 +36,17 @@ interface Props {
   onPractice: (id: string) => void
   /** Feeds Review's "Has a note" filter. Absent where nothing tracks it. */
   onLogged?: (id: string, has: boolean) => void
+  /**
+   * Log the mistake here rather than only read it back. On for a finished
+   * set's score screen, which is the first place in a set you learn whether
+   * you got it right, and so the first place logging one means anything.
+   */
+  editable?: boolean
 }
 
-export function QuestionDetail({ id, response, seconds, onPractice, onLogged }: Props) {
+export function QuestionDetail({
+  id, response, seconds, onPractice, onLogged, editable,
+}: Props) {
   const [data, setData] = useState<{
     question: Question; annotations: Annotation[]; mistake: Mistake | null
   } | null>(null)
@@ -53,6 +58,9 @@ export function QuestionDetail({ id, response, seconds, onPractice, onLogged }: 
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [showPassage, setShowPassage] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Kept apart from `error`, which replaces the whole panel. A save that fails
+  // should say so without throwing away the question you were reading.
+  const [logError, setLogError] = useState<string | null>(null)
 
   useEffect(() => {
     let stale = false
@@ -75,6 +83,16 @@ export function QuestionDetail({ id, response, seconds, onPractice, onLogged }: 
 
   const hasLog = Boolean(data.mistake
     && (data.mistake.tags.length || data.mistake.note))
+
+  function saveMistake(tags: MistakeTag[], note: string | null) {
+    setLogError(null)
+    void api.saveMistake(id, tags, note)
+      .then((r) => {
+        setData((d) => (d ? { ...d, mistake: r.mistake } : d))
+        onLogged?.(id, Boolean(r.mistake && (r.mistake.tags.length || r.mistake.note)))
+      })
+      .catch((e: Error) => setLogError(e.message))
+  }
 
   return (
     <div className="review-detail">
@@ -148,9 +166,25 @@ export function QuestionDetail({ id, response, seconds, onPractice, onLogged }: 
         </table>
       </div>
 
-      {/* Nothing logged means nothing to show. An empty section was just noise
-          on every question you never wrote anything about. */}
-      {hasLog ? (
+      {/* Editable where the verdict has just been revealed, read-only
+          elsewhere. Nothing logged and nothing to log with means nothing to
+          show: an empty section was just noise on every question you never
+          wrote anything about. */}
+      {editable ? (
+        <>
+          <h4 className="review-h">Mistake log</h4>
+          <div className="mlog mlog-inline">
+            <MistakeFields mistake={data.mistake}
+                           onSave={saveMistake}
+                           id={`mlog-note-${id}`}
+                           lead="Why did you miss this one? Pick as many as fit." />
+            <p className="mlog-fine">
+              Saved automatically. Shows up on the Review page.
+            </p>
+            {logError ? <p className="mlog-error">{logError}</p> : null}
+          </div>
+        </>
+      ) : hasLog ? (
         <>
           <h4 className="review-h">Mistake log</h4>
           <div className="review-mistake">

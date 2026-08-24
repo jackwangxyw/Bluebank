@@ -1602,3 +1602,8 @@ body.dragging-panel, body.dragging-panel .desmos-head { cursor: grabbing; user-s
   font-size: 11.5px; line-height: 1.35; word-break: break-word;
   border-top: 1px solid rgba(166, 13, 38, .25);
 }
+
+/* The same mistake-log controls inline in an expanded review row, where the
+   drawer's own padding would double up on the panel's. */
+.mlog-inline { padding: 0; overflow: visible; }
+.mlog-error { margin: 8px 0 0; font-size: 12px; color: var(--red); }

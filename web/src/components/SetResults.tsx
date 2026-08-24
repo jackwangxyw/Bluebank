@@ -133,7 +133,8 @@ export function SetResults({ set, onPractice, onRedo, onDelete, onDone }: Props)
                 <QuestionDetail id={item.question_id}
                                 response={item.response}
                                 seconds={item.seconds}
-                                onPractice={onPractice} />
+                                onPractice={onPractice}
+                                editable />
               ) : null}
             </li>
           )

@@ -636,14 +636,20 @@ export default function App() {
               {annotations.length ? ` (${annotations.length})` : ''}
             </span>
           </button>
-          <button className={showMistake ? 'tool on' : 'tool'}
-                  onClick={() => setShowMistake((v) => !v)}>
-            <span className="tool-glyphs"><Icon name="tag" size={20} /></span>
-            <span className={mistake ? 'tool-label has-count' : 'tool-label'}>
-              <span className="tool-text">Mistake log</span>
-              {mistake ? ` (${mistake.tags.length || 1})` : ''}
-            </span>
-          </button>
+          {/* Not during a set. A set withholds the verdict until it ends, so
+              logging why you missed one here would be guessing at whether you
+              missed it at all. The score screen logs them instead, where every
+              question already says right or wrong. */}
+          {activeSet ? null : (
+            <button className={showMistake ? 'tool on' : 'tool'}
+                    onClick={() => setShowMistake((v) => !v)}>
+              <span className="tool-glyphs"><Icon name="tag" size={20} /></span>
+              <span className={mistake ? 'tool-label has-count' : 'tool-label'}>
+                <span className="tool-text">Mistake log</span>
+                {mistake ? ` (${mistake.tags.length || 1})` : ''}
+              </span>
+            </button>
+          )}
           <div className="tool static">
             <span className="tool-glyphs"><Icon name="check" size={21} /></span>
             <span>
@@ -747,7 +753,7 @@ export default function App() {
                    onFinish={finishSet} />
       ) : null}
 
-      {showMistake && current ? (
+      {showMistake && current && !activeSet ? (
         <MistakeLog key={current.id}
                     mistake={mistake}
                     onClose={() => setShowMistake(false)}

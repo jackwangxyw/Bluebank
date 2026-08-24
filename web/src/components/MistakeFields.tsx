@@ -6,7 +6,7 @@
  * in very different containers, so the controls live here and each caller
  * supplies its own wrapper.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MISTAKE_TAGS, type Mistake, type MistakeTag } from '../types'
 
 export const TAG_LABEL: Record<MistakeTag, string> = {
@@ -37,10 +37,33 @@ export function MistakeFields({ mistake, onSave, lead, id = 'mlog-note' }: Props
   const [tags, setTags] = useState<MistakeTag[]>(mistake?.tags ?? [])
   const [note, setNote] = useState(mistake?.note ?? '')
 
+  /**
+   * The latest values, plus the note the store already has.
+   *
+   * The note saves on blur, and React does not blur an element it unmounts, so
+   * folding this section away or closing the row it sits in would drop a note
+   * you had just finished typing. The cleanup below flushes it. Held in a ref
+   * because that cleanup runs once, long after the render it closed over.
+   */
+  const live = useRef({ tags, note, saved: (mistake?.note ?? '').trim(), onSave })
+  live.current.tags = tags
+  live.current.note = note
+  live.current.onSave = onSave
+
+  function save(nextTags: MistakeTag[], nextNote: string) {
+    live.current.saved = nextNote.trim()
+    onSave(nextTags, nextNote.trim() || null)
+  }
+
+  useEffect(() => () => {
+    const l = live.current
+    if (l.note.trim() !== l.saved) l.onSave(l.tags, l.note.trim() || null)
+  }, [])
+
   function toggle(tag: MistakeTag) {
     const next = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]
     setTags(next)
-    onSave(next, note.trim() || null)
+    save(next, note)
   }
 
   return (
@@ -63,7 +86,7 @@ export function MistakeFields({ mistake, onSave, lead, id = 'mlog-note' }: Props
                 placeholder="What you missed, and what to do next time."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                onBlur={() => onSave(tags, note.trim() || null)} />
+                onBlur={() => save(tags, note)} />
     </>
   )
 }

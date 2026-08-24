@@ -57,6 +57,9 @@ export function QuestionDetail({
   const [result, setResult] = useState<GradeResult | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [showPassage, setShowPassage] = useState(false)
+  // Folded by default. The panel already carries the question, the choices,
+  // the attempts table and the explanation, and most rows never get a log.
+  const [showLog, setShowLog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Kept apart from `error`, which replaces the whole panel. A save that fails
   // should say so without throwing away the question you were reading.
@@ -172,17 +175,30 @@ export function QuestionDetail({
           wrote anything about. */}
       {editable ? (
         <>
-          <h4 className="review-h">Mistake log</h4>
-          <div className="mlog mlog-inline">
-            <MistakeFields mistake={data.mistake}
-                           onSave={saveMistake}
-                           id={`mlog-note-${id}`}
-                           lead="Why did you miss this one? Pick as many as fit." />
-            <p className="mlog-fine">
-              Saved automatically. Shows up on the Review page.
-            </p>
-            {logError ? <p className="mlog-error">{logError}</p> : null}
-          </div>
+          {/* Opens like the passage above it. The label carries whether there
+              is already something logged, so a folded section never hides the
+              fact that you wrote one. */}
+          <button className="btn small review-toggle"
+                  aria-expanded={showLog}
+                  onClick={() => setShowLog((v) => !v)}>
+            {hasLog
+              ? `Mistake log (${data.mistake!.tags.length || 1})`
+              : 'Log a mistake'}
+            <Icon name={showLog ? 'chevron-up' : 'chevron-down'}
+                  size={14} strokeWidth={2.2} />
+          </button>
+          {showLog ? (
+            <div className="mlog mlog-inline">
+              <MistakeFields mistake={data.mistake}
+                             onSave={saveMistake}
+                             id={`mlog-note-${id}`}
+                             lead="Why did you miss this one? Pick as many as fit." />
+              <p className="mlog-fine">
+                Saved automatically. Shows up on the Review page.
+              </p>
+              {logError ? <p className="mlog-error">{logError}</p> : null}
+            </div>
+          ) : null}
         </>
       ) : hasLog ? (
         <>
